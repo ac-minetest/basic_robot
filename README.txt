@@ -3,7 +3,7 @@ minetest 0.4.14
 (c) 2016 rnd
 
 MANUAL:
-	1. ingame help: right click spawner and click help button
+	1. ingame help: right click spawner (basic_robot:spawner) and click help button
 
 ---------------------------------------------------------------------
 This program is free software: you can redistribute it and/or modify
