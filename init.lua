@@ -218,6 +218,11 @@ minetest.register_entity("basic_robot:robot",{
 				return;
 			end
 			
+			if self.code == "" then 
+				self.object:remove(); 
+				return;
+			end
+			
 			basic_robot.data[self.owner].obj = self.object;
 			initSandbox ( self.owner )
 			self.running = 1;
@@ -238,6 +243,7 @@ minetest.register_entity("basic_robot:robot",{
 			if err then
 				minetest.chat_send_player(self.owner,"#ROBOT CODE COMPILATION ERROR : " .. err) 
 				self.running = 0; -- stop execution
+				self.object:remove();
 			end
 			
 			self.running = 1
@@ -264,6 +270,7 @@ minetest.register_entity("basic_robot:robot",{
 			if err then 
 				minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
 				self.running = 0; -- stop execution
+				self.object:remove();
 			end
 			
 			return 
@@ -273,7 +280,9 @@ minetest.register_entity("basic_robot:robot",{
 	end,
 	
 	 on_rightclick = function(self, clicker)
-		-- TODO
+		text = minetest.formspec_escape(self.code);
+		local form = "size [8,7] textarea[0,0;8.5,8.5;help;code;".. text.."]"
+		minetest.show_formspec(clicker:get_player_name(), "robot_code", form);
 	 end,
 })
 
@@ -288,8 +297,8 @@ local robot_spawner_update_form = function (pos)
 		local form  = 
 		"size[8,6]" ..  -- width, height
 		"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
-		"button_exit[-0.25,-0.25;2,1;spawn;SPAWN]"..
-		"button[1.75,-0.25;2,1;despawn;REMOVE]"..
+		"button_exit[-0.25,-0.25;2,1;spawn;START]"..
+		"button[1.75,-0.25;2,1;despawn;STOP]"..
 		"button[5.25,-0.25;1,1;help;help]"..
 		"button_exit[6.25,-0.25;1,1;reset;reset]"..
 		"button_exit[7.25,-0.25;1,1;OK;OK]";
