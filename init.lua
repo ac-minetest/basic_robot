@@ -3,7 +3,7 @@ basic_robot = {};
 
 basic_robot.data = {}; 
 --[[
-[name] = {sandbox= .., bytecode = ..., ram = ..., obj = robot object} 
+[name] = {sandbox= .., bytecode = ..., ram = ..., obj = robot object,spawnpos=...} 
 robot object = object of entity, used to manipulate movements and more
 --]]
 
@@ -14,7 +14,7 @@ dofile(minetest.get_modpath("basic_robot").."/commands.lua")
 -- SANDBOX for running lua code isolated and safely
 
 function getSandboxEnv (name)
-	local obj = basic_robot.data[name].obj;
+	local obj = basic_robot.data[name].obj; -- bug: this doesnt refresh always??
 	local commands = basic_robot.commands;
 	return 
 	{
@@ -209,6 +209,7 @@ minetest.register_entity("basic_robot:robot",{
 		
 		-- how to make it remember owner when it reactivates ?? staticdata seems to be empty
 		
+		self.object:set_armor_groups({fleshy=0})
 		if staticdata~="" then -- reactivate robot
 			
 			self.owner = staticdata; -- remember its owner
@@ -218,15 +219,14 @@ minetest.register_entity("basic_robot:robot",{
 				return;
 			end
 			
-			if self.code == "" then 
-				self.object:remove(); 
-				return;
-			end
 			
 			basic_robot.data[self.owner].obj = self.object;
 			initSandbox ( self.owner )
 			self.running = 1;
-
+			local pos =  basic_robot.data[self.owner].spawnpos;
+			local meta =  minetest.get_meta(pos);
+			if meta then self.code = meta:get_string("code") end
+			
 			return
 		end
 		
@@ -245,6 +245,7 @@ minetest.register_entity("basic_robot:robot",{
 				self.running = 0; -- stop execution
 				self.object:remove();
 			end
+			basic_robot.data[self.owner].spawnpos  = {x=self.spawnpos.x,y=self.spawnpos.y,z=self.spawnpos.z};
 			
 			self.running = 1
 		end
@@ -337,17 +338,17 @@ local spawn_robot = function(pos,node,ttl)
 	local owner = meta:get_string("owner")
 	-- if robot already exists do nothing
 	if basic_robot.data[owner] and basic_robot.data[owner].obj then
-		if basic_robot.data[owner].obj:getpos() then 
-			minetest.chat_send_player(owner,"#ROBOT ERROR : robot already active")
-			return 
-		end
+		minetest.chat_send_player(owner,"#ROBOT ERROR : robot already active")
+		return 
 	end
 	
 	local obj = minetest.add_entity(pos,"basic_robot:robot");
 	local luaent = obj:get_luaentity();
 	luaent.owner = meta:get_string("owner");
 	luaent.code = meta:get_string("code");
-	luaent.spawnpos = minetest.pos_to_string({x=pos.x,y=pos.y-1,z=pos.z});
+    luaent.spawnpos = {x=pos.x,y=pos.y-1,z=pos.z};
+	-- note: 
+	
 end
 
 minetest.register_node("basic_robot:spawner", {
@@ -433,6 +434,7 @@ minetest.register_node("basic_robot:spawner", {
 			if not basic_robot.data[owner] then return end
 			if basic_robot.data[owner].obj then
 				basic_robot.data[owner].obj:remove();
+				basic_robot.data[owner].obj = nil;
 			end
 			return
 		end
