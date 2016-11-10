@@ -14,70 +14,69 @@ dofile(minetest.get_modpath("basic_robot").."/commands.lua")
 -- SANDBOX for running lua code isolated and safely
 
 function getSandboxEnv (name)
-	local obj = basic_robot.data[name].obj; -- bug: this doesnt refresh always??
 	local commands = basic_robot.commands;
 	return 
 	{
 		pcall=pcall,
 		ram = basic_robot.data[name].ram, -- "ram" - used to store variables
 		move = { -- changes position of robot
-			left = function() commands.move(obj, 1) end,
-			right = function() commands.move(obj, 2) end,
-			forward = function() commands.move(obj, 3) end,
-			backward = function() commands.move(obj, 4) end,
-			up = function() commands.move(obj,5) end,
-			down = function() commands.move(obj,6) end,
+			left = function() commands.move(name,1) end,
+			right = function() commands.move(name,2) end,
+			forward = function() commands.move(name,3) end,
+			backward = function() commands.move(name,4) end,
+			up = function() commands.move(name,5) end,
+			down = function() commands.move(name,6) end,
 		},
 		
 		turn = {
-			left = function() commands.turn(obj,math.pi/2) end,
-			right = function() commands.turn(obj,-math.pi/2) end,
-			angle = function(angle) commands.turn(obj,angle*math.pi/180) end,
+			left = function() commands.turn(name,math.pi/2) end,
+			right = function() commands.turn(name,-math.pi/2) end,
+			angle = function(angle) commands.turn(name,angle*math.pi/180) end,
 		},
 		
 		dig = {
-			left = function() commands.dig(obj, 1) end,
-			right = function() commands.dig(obj, 2) end,
-			forward = function() commands.dig(obj, 3) end,
-			backward = function() commands.dig(obj, 4) end,
-			down = function() commands.dig(obj, 6) end,
-			up = function() commands.dig(obj, 5) end,
+			left = function() commands.dig(name,1) end,
+			right = function() commands.dig(name,2) end,
+			forward = function() commands.dig(name,3) end,
+			backward = function() commands.dig(name,4) end,
+			down = function() commands.dig(name,6) end,
+			up = function() commands.dig(name,5) end,
 		},
 		
 		place = {
-			left = function(nodename) commands.place(obj, nodename, 1) end,
-			right = function(nodename) commands.place(obj,nodename, 2) end,
-			forward = function(nodename) commands.place(obj,nodename, 3) end,
-			backward = function(nodename) commands.place(obj,nodename, 4) end,
-			down = function(nodename) commands.place(obj,nodename, 6) end,
-			up = function(nodename) commands.place(obj,nodename, 5) end,
+			left = function(nodename) commands.place(name,nodename, 1) end,
+			right = function(nodename) commands.place(name,nodename, 2) end,
+			forward = function(nodename) commands.place(name,nodename, 3) end,
+			backward = function(nodename) commands.place(name,nodename, 4) end,
+			down = function(nodename) commands.place(name,nodename, 6) end,
+			up = function(nodename) commands.place(name,nodename, 5) end,
 		},
 		
 		insert = { -- insert item from inventory into another inventory TODO
-			forward = function(item, inventory) robot_insert(obj, item, inventory,1) end,
-			backward = function(item, inventory) robot_insert(obj, item, inventory,2) end,
-			down = function(item, inventory) robot_insert(obj, item, inventory,3) end,
-			up = function(item, inventory) robot_insert(obj, item, inventory,4) end,
+			forward = function(item, inventory) robot_insert(name,item, inventory,1) end,
+			backward = function(item, inventory) robot_insert(name,item, inventory,2) end,
+			down = function(item, inventory) robot_insert(name,item, inventory,3) end,
+			up = function(item, inventory) robot_insert(name,item, inventory,4) end,
 		},
 		
 		take = {}, -- take item from inventory TODO
 
-		selfpos = function() return obj:getpos() end,
+		selfpos = function() return basic_robot.data[name].obj:getpos() end,
 		
 		find_nodes = 
 			function(nodename,r) 
 				if r>8 then return false end
-				return (minetest.find_node_near(obj:getpos(), r, nodename)~=nil)
+				return (minetest.find_node_near(basic_robot.data[name].obj:getpos(), r, nodename)~=nil)
 			end, -- in radius around position
 		
 		
 		read_node = { -- returns node name
-			left = function() return commands.read_node(obj, 1) end,
-			right = function() return commands.read_node(obj, 2) end,
-			forward = function() return commands.read_node(obj, 3) end,
-			backward = function() return commands.read_node(obj, 4) end,
-			down = function() return commands.read_node(obj, 6) end,
-			up = function() return commands.read_node(obj, 5) end,
+			left = function() return commands.read_node(name,1) end,
+			right = function() return commands.read_node(name,2) end,
+			forward = function() return commands.read_node(name,3) end,
+			backward = function() return commands.read_node(name,4) end,
+			down = function() return commands.read_node(name,6) end,
+			up = function() return commands.read_node(name,5) end,
 		},
 		
 		say  = function(text)
@@ -214,7 +213,7 @@ local robot_spawner_update_form = function (pos, mode)
 end
 
 local function init_robot(self)
-	basic_robot.data[self.owner].obj = self.object;
+	basic_robot.data[self.owner].obj = self.object; -- BUG: some problems with functions using object later??
 	self.object:set_properties({infotext = "robot " .. self.owner});
 	self.object:set_properties({nametag = "robot " .. self.owner,nametag_color = "LawnGreen"});
 	initSandbox ( self.owner )
@@ -250,7 +249,7 @@ minetest.register_entity("basic_robot:robot",{
 				return;
 			end
 			
-			
+			self.spawnpos = basic_robot.data[self.owner].spawnpos;
 			init_robot(self);
 			self.running = 1;
 			
@@ -268,6 +267,7 @@ minetest.register_entity("basic_robot:robot",{
 				basic_robot.data[self.owner] = {};
 			end
 			
+			basic_robot.data[self.owner].spawnpos  = {x=self.spawnpos.x,y=self.spawnpos.y,z=self.spawnpos.z};
 			init_robot(self); -- set properties, init sandbox
 			
 			local err = setCode( self.owner, self.code ); -- compile code
@@ -276,7 +276,7 @@ minetest.register_entity("basic_robot:robot",{
 				self.running = 0; -- stop execution
 				self.object:remove();
 			end
-			basic_robot.data[self.owner].spawnpos  = {x=self.spawnpos.x,y=self.spawnpos.y,z=self.spawnpos.z};
+			
 			self.running = 1
 			
 		end
@@ -480,10 +480,16 @@ minetest.register_node("basic_robot:spawner", {
 		return stack:get_count();
 	end,
 	
-	
 	allow_metadata_inventory_move = function(pos, from_list, from_index, to_list, to_index, count, player)
 		return 0;
 	end,
+	
+	can_dig = function(pos, player)
+		if minetest.is_protected(pos, player:get_player_name()) then return false end 
+		local meta = minetest.get_meta(pos);
+		if not meta:get_inventory():is_empty("main") then return false end
+		return true
+	end
 	
 })
 

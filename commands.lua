@@ -26,7 +26,8 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	return pos
 end
 
-basic_robot.commands.move = function(obj,dir)
+basic_robot.commands.move = function(name,dir)
+	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)
 	
 	if minetest.get_node(pos).name ~= "air" then return end
@@ -40,13 +41,15 @@ basic_robot.commands.move = function(obj,dir)
 end
 
 
-basic_robot.commands.turn = function (obj, angle)
+basic_robot.commands.turn = function (name, angle)
+	local obj = basic_robot.data[name].obj;
 	local yaw = obj:getyaw()+angle;
 	obj:setyaw(yaw);
 end
 
 
-basic_robot.commands.dig = function(obj,dir)
+basic_robot.commands.dig = function(name,dir)
+	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
 	if minetest.is_protected(pos,luaent.owner ) then return end
@@ -62,23 +65,30 @@ basic_robot.commands.dig = function(obj,dir)
 	minetest.set_node(pos,{name = "air"})
 end
 
-basic_robot.commands.read_node = function(obj,dir)
+basic_robot.commands.read_node = function(name,dir)
+	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	return minetest.get_node(pos).name or ""
 end
 
 
-basic_robot.commands.place = function(obj,nodename, dir)
+basic_robot.commands.place = function(name,nodename, dir)
+	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
 	if minetest.is_protected(pos,luaent.owner ) then return end
 	if minetest.get_node(pos).name~="air" then return end
 	
 	local spos = obj:get_luaentity().spawnpos; 
-	local inv = minetest.get_meta(spos):get_inventory();
-	if not inv then return end
-	if not inv:contains_item("main", ItemStack(nodename)) then return end
 	
+	local meta = minetest.get_meta(spos);
+	
+	
+	local inv = meta:get_inventory();
+	if not inv then return end
+	if not inv:contains_item("main", ItemStack(nodename)) and meta:get_int("admin")~=1 then return end
 	inv:remove_item("main", ItemStack(nodename));	
+	
+	
 	minetest.set_node(pos,{name = nodename})
 end
