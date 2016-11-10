@@ -189,17 +189,48 @@ local function update_formspec_robot(self)
 	
 end
 
+
+local robot_spawner_update_form = function (pos, mode)
+	
+	local meta = minetest.get_meta(pos);
+	if not meta then return end
+	local x0,y0,z0;
+	x0=meta:get_int("x0");y0=meta:get_int("y0");z0=meta:get_int("z0"); -- direction of velocity
+	local code = minetest.formspec_escape(meta:get_string("code"));
+	
+	local form  = 
+	"size[8,6]" ..  -- width, height
+	"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
+	"button_exit[-0.25,-0.25;1.5,1;spawn;START]"..
+	"button[1.25,-0.25;1.5,1;despawn;STOP]"..
+	"button[2.75,-0.25;1.5,1;inventory;inventory]"..
+	"button[5.25,-0.25;1,1;help;help]"..
+	"button_exit[6.25,-0.25;1,1;reset;clear]"..
+	"button_exit[7.25,-0.25;1,1;OK;OK]";
+	
+	if mode ==1 then return form end
+	meta:set_string("formspec",form)
+
+end
+
+local function init_robot(self)
+	basic_robot.data[self.owner].obj = self.object;
+	self.object:set_properties({infotext = "robot " .. self.owner});
+	self.object:set_properties({nametag = "robot " .. self.owner,nametag_color = "LawnGreen"});
+	initSandbox ( self.owner )
+end
+
 minetest.register_entity("basic_robot:robot",{
 	energy = 1, 
 	owner = "",
 	hp_max = 10,
 	code = "",
 	timer = 0,
-	timestep = 1,
+	timestep = 1, -- run every 1 second
 	spawnpos = "",
 	visual="cube",
 	visual_size={x=1,y=1},
-	running = 0,
+	running = 0, -- does it run code or is it idle?	
 	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
 	physical=true,
 
@@ -220,38 +251,38 @@ minetest.register_entity("basic_robot:robot",{
 			end
 			
 			
-			basic_robot.data[self.owner].obj = self.object;
-			initSandbox ( self.owner )
+			init_robot(self);
 			self.running = 1;
+			
 			local pos =  basic_robot.data[self.owner].spawnpos;
 			local meta =  minetest.get_meta(pos);
-			if meta then self.code = meta:get_string("code") end
+			if meta then self.code = meta:get_string("code") end -- remember code
 			
 			return
 		end
 		
-		-- init robot
+		-- init robot TODO: rewrite for less buggy
 		minetest.after(0, 
 		function() 
 			if not basic_robot.data[self.owner] then
 				basic_robot.data[self.owner] = {};
 			end
-			basic_robot.data[self.owner].obj = self.object;
 			
-			initSandbox ( self.owner )
-			local err = setCode( self.owner, self.code );
+			init_robot(self); -- set properties, init sandbox
+			
+			local err = setCode( self.owner, self.code ); -- compile code
 			if err then
 				minetest.chat_send_player(self.owner,"#ROBOT CODE COMPILATION ERROR : " .. err) 
 				self.running = 0; -- stop execution
 				self.object:remove();
 			end
 			basic_robot.data[self.owner].spawnpos  = {x=self.spawnpos.x,y=self.spawnpos.y,z=self.spawnpos.z};
-			
 			self.running = 1
+			
 		end
 		)
-		
-		self.object:setyaw(0);
+
+
 		
 	end,
 	
@@ -265,7 +296,7 @@ minetest.register_entity("basic_robot:robot",{
 	
 	on_step = function(self, dtime)
 		self.timer=self.timer+dtime
-		if self.timer>self.timestep and self.running ~= 0 then 
+		if self.timer>self.timestep and self.running == 1 then 
 			self.timer = 0;
 			local err = runSandbox(self.owner);
 			if err then 
@@ -281,32 +312,14 @@ minetest.register_entity("basic_robot:robot",{
 	end,
 	
 	 on_rightclick = function(self, clicker)
-		text = minetest.formspec_escape(self.code);
-		local form = "size [8,7] textarea[0,0;8.5,8.5;help;code;".. text.."]"
+		local text = minetest.formspec_escape(self.code);
+		local form = robot_spawner_update_form(self.spawnpos,1);
+		
 		minetest.show_formspec(clicker:get_player_name(), "robot_code", form);
 	 end,
 })
 
 
-local robot_spawner_update_form = function (pos)
-	
-		local meta = minetest.get_meta(pos);
-		local x0,y0,z0;
-		x0=meta:get_int("x0");y0=meta:get_int("y0");z0=meta:get_int("z0"); -- direction of velocity
-		local code = minetest.formspec_escape(meta:get_string("code"));
-		
-		local form  = 
-		"size[8,6]" ..  -- width, height
-		"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
-		"button_exit[-0.25,-0.25;2,1;spawn;START]"..
-		"button[1.75,-0.25;2,1;despawn;STOP]"..
-		"button[5.25,-0.25;1,1;help;help]"..
-		"button_exit[6.25,-0.25;1,1;reset;reset]"..
-		"button_exit[7.25,-0.25;1,1;OK;OK]";
-
-		meta:set_string("formspec",form);
-
-end
 
 local spawn_robot = function(pos,node,ttl)
 	if ttl<0 then return end
@@ -366,8 +379,11 @@ minetest.register_node("basic_robot:spawner", {
 		local privs = minetest.get_player_privs(placer:get_player_name()); if privs.privs then meta:set_int("admin",1) end
 	
 		meta:set_string("code","");
+		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
 		robot_spawner_update_form(pos);
-		
+
+		local inv = meta:get_inventory(); -- spawner inventory
+		inv:set_size("main",32);
 	end,
 
 	mesecons = {effector = {
@@ -409,7 +425,7 @@ minetest.register_node("basic_robot:spawner", {
 			"move.direction(), where direction is forward, backward, left,right, up, down\n"..
 			"turn.left(), turn.right(), turn.angle(45)\n"..
 			"dig.direction(), place.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
-			"find_nodes(3,\"default:dirt\") is true if node can be found at radius 3 around robot, otherwise false\n"..
+			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
 			"selfpos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"say(\"hello\") will speak";
 			
@@ -439,6 +455,34 @@ minetest.register_node("basic_robot:spawner", {
 			return
 		end
 		
+		if fields.inventory then
+			local list_name = "nodemeta:"..pos.x..','..pos.y..','..pos.z ;
+			local form  = 
+			"size[8,8]" ..  -- width, height
+			"list["..list_name..";main;0.,0;8,4;]"..
+			"list[current_player;main;0,4.25;8,4;]";
+			minetest.show_formspec(sender:get_player_name(), "robot_inventory", form);
+		end
+		
+	end,
+	
+	allow_metadata_inventory_put = function(pos, listname, index, stack, player)
+		local meta = minetest.get_meta(pos);
+		local privs = minetest.get_player_privs(player:get_player_name());
+		if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+		return stack:get_count();
+	end,
+	
+	allow_metadata_inventory_take = function(pos, listname, index, stack, player)
+		local meta = minetest.get_meta(pos);
+		local privs = minetest.get_player_privs(player:get_player_name());
+		if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+		return stack:get_count();
+	end,
+	
+	
+	allow_metadata_inventory_move = function(pos, from_list, from_index, to_list, to_index, count, player)
+		return 0;
 	end,
 	
 })

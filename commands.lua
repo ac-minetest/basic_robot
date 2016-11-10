@@ -50,6 +50,15 @@ basic_robot.commands.dig = function(obj,dir)
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
 	if minetest.is_protected(pos,luaent.owner ) then return end
+	
+	local nodename = minetest.get_node(pos).name;
+	if nodename == "air" then return end
+	
+	local spos = obj:get_luaentity().spawnpos; 
+	local inv = minetest.get_meta(spos):get_inventory();
+	if not inv then return end
+	inv:add_item("main",ItemStack( nodename ));
+	
 	minetest.set_node(pos,{name = "air"})
 end
 
@@ -64,5 +73,12 @@ basic_robot.commands.place = function(obj,nodename, dir)
 	local luaent = obj:get_luaentity();
 	if minetest.is_protected(pos,luaent.owner ) then return end
 	if minetest.get_node(pos).name~="air" then return end
+	
+	local spos = obj:get_luaentity().spawnpos; 
+	local inv = minetest.get_meta(spos):get_inventory();
+	if not inv then return end
+	if not inv:contains_item("main", ItemStack(nodename)) then return end
+	
+	inv:remove_item("main", ItemStack(nodename));	
 	minetest.set_node(pos,{name = nodename})
 end
