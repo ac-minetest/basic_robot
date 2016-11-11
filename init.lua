@@ -1,5 +1,6 @@
 -- basic_robot by rnd, 2016
 basic_robot = {};
+basic_robot.call_limit = 32; -- how many function calls per script execution allowed
 
 basic_robot.data = {}; 
 --[[
@@ -15,7 +16,7 @@ dofile(minetest.get_modpath("basic_robot").."/commands.lua")
 
 function getSandboxEnv (name)
 	local commands = basic_robot.commands;
-	return 
+	local env = 
 	{
 		pcall=pcall,
 		ram = basic_robot.data[name].ram, -- "ram" - used to store variables
@@ -131,13 +132,29 @@ function getSandboxEnv (name)
 			time = os.time,
 			
 		},
-	}
+		error = error,
+		debug = debug,
+		
+		_ccounter = basic_robot.data[name].ccounter, -- counts how many function calls per execution of script
+		
+		increase_ccounter = 
+		function() 
+			local _ccounter = basic_robot.data[name].ccounter;
+			if _ccounter > basic_robot.call_limit then
+				error("Execution limit " .. basic_robot.call_limit .. " exceeded");
+			end
+			basic_robot.data[name].ccounter = _ccounter + 1;
+		end,
+	};
+	env._G = env;
+	return env	
 end
 
 
 local function check_code(code)
   
-  local bad_code = {"while ", "for ", "do ", "repeat ", "until ", "goto "}
+  --"while ", "for ", "do ","goto ", 
+  local bad_code = {"repeat ", "until ", "_ccounter"}
 	
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
@@ -148,8 +165,64 @@ local function check_code(code)
 end
 
 local function CompileCode ( script )
+   
+	--[[ idea: in each local a = function (args) ... end insert counter like:
+	local a = function (args) counter() ... end 
+	when counter exceeds limit exit with error
+	--]]
+	
+	script="_ccounter = 0; " .. script;
+	local i1 -- process script to insert call counter in every function
+	local insert_code = " increase_ccounter(); ";
+
+	local i1=0; local i2 = 0;
+	
+	while (i2) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
+		i2 = nil;
+		i2=string.find (script, "function", i1) -- fix functions
+		
+		if i2 then
+			i2=string.find(script, ")", i2);
+			if i2 then 
+				script = script.sub(script,1, i2) .. insert_code .. script.sub(script, i2+1); 
+				i1=i2+string.len(insert_code);
+			end
+		
+		end
+		
+		i2=string.find (script, "for ", i1) -- fix for OK
+		if i2 then
+			i2=string.find(script, "do", i2);
+			if i2 then 
+				script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+				i1=i2+string.len(insert_code);
+			end
+		
+		end
+		
+		i2=string.find (script, "while ", i1) -- fix while OK
+		if i2 then
+			i2=string.find(script, "do", i2);
+			if i2 then 
+				script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+				i1=i2+string.len(insert_code);
+			end
+		end
+		
+		i2=string.find (script, "goto ", i1) -- fix goto OK
+		
+		if i2 then
+			script = script.sub(script,1, i2-1) .. insert_code .. script.sub(script, i2); 
+			i1=i2+string.len(insert_code)+5; -- insert + skip goto
+		end
+		
+	end
+
+	--minetest.chat_send_all("script " .. script)
+	--if true then return nil end
+	
 	local ScriptFunc, CompileError = loadstring( script )
-    if CompileError then
+	if CompileError then
         return nil, CompileError
     end
 	return ScriptFunc, nil
@@ -163,6 +236,7 @@ local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCo
 	local err;
 	err = check_code(script);
 	if err then return err end
+
 	local bytecode, err = CompileCode ( script );
 	if err then return err end
 	basic_robot.data[name].bytecode = bytecode;
@@ -177,13 +251,20 @@ local function runSandbox( name)
 		return "Bytecode missing."
 	end	
 	
-    setfenv( ScriptFunc, basic_robot.data[name].sandbox )
-
-    local Result, RuntimeError = pcall( ScriptFunc )
-    if RuntimeError then
-        return RuntimeError
-    end
-
+	basic_robot.data[name].ccounter = 0;
+	setfenv( ScriptFunc, basic_robot.data[name].sandbox )
+	
+	-- pcall(
+	-- function()
+		-- debug.sethook(error,"l")  -- raises error when next line is called
+		
+		local Result, RuntimeError = pcall( ScriptFunc )
+		if RuntimeError then
+			return RuntimeError
+		end
+	-- end)
+		minetest.chat_send_all("ccounter " .. basic_robot.data[name].ccounter)
+    
     return nil
 end
 
