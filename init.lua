@@ -1,6 +1,8 @@
 -- basic_robot by rnd, 2016
+
+
 basic_robot = {};
-basic_robot.call_limit = 32; -- how many function calls per script execution allowed
+basic_robot.call_limit = 32; -- how many execution calls per script execution allowed
 
 basic_robot.data = {}; 
 --[[
@@ -19,7 +21,6 @@ function getSandboxEnv (name)
 	local env = 
 	{
 		pcall=pcall,
-		ram = basic_robot.data[name].ram, -- "ram" - used to store variables
 		move = { -- changes position of robot
 			left = function() return commands.move(name,1) end,
 			right = function() return commands.move(name,2) end,
@@ -135,7 +136,7 @@ function getSandboxEnv (name)
 		error = error,
 		debug = debug,
 		
-		_ccounter = basic_robot.data[name].ccounter, -- counts how many function calls per execution of script
+		_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
 		
 		increase_ccounter = 
 		function() 
@@ -217,9 +218,6 @@ local function CompileCode ( script )
 		end
 		
 	end
-
-	--minetest.chat_send_all("script " .. script)
-	--if true then return nil end
 	
 	local ScriptFunc, CompileError = loadstring( script )
 	if CompileError then
@@ -258,8 +256,6 @@ local function runSandbox( name)
 		if RuntimeError then
 			return RuntimeError
 		end
-	
-		--minetest.chat_send_all("ccounter " .. basic_robot.data[name].ccounter)
     
     return nil
 end
@@ -277,22 +273,34 @@ end
 
 local robot_spawner_update_form = function (pos, mode)
 	
+	if not pos then return end
 	local meta = minetest.get_meta(pos);
 	if not meta then return end
 	local x0,y0,z0;
 	x0=meta:get_int("x0");y0=meta:get_int("y0");z0=meta:get_int("z0"); -- direction of velocity
 	local code = minetest.formspec_escape(meta:get_string("code"));
+	local form;
 	
-	local form  = 
-	"size[8,6]" ..  -- width, height
-	"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
-	"button_exit[-0.25,-0.25;1.5,1;spawn;START]"..
-	"button[1.25,-0.25;1.5,1;despawn;STOP]"..
-	"button[2.75,-0.25;1.5,1;inventory;inventory]"..
-	"button[5.25,-0.25;1,1;help;help]"..
-	"button_exit[6.25,-0.25;1,1;reset;clear]"..
-	"button_exit[7.25,-0.25;1,1;OK;OK]";
-	
+	if mode ~= 1 then 
+		form  = 
+		"size[8,6]" ..  -- width, height
+		"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
+		"button_exit[-0.25,-0.25;1.5,1;spawn;START]"..
+		"button[1.25,-0.25;1.5,1;despawn;STOP]"..
+		"button[2.75,-0.25;1.5,1;inventory;inventory]"..
+		"button[5.25,-0.25;1,1;help;help]"..
+		"button_exit[6.25,-0.25;1,1;reset;CLEAR]"..
+		"button_exit[7.25,-0.25;1,1;OK;SAVE]";
+	else
+		form  = 
+		"size[8,6]" ..  -- width, height
+		"textarea[0.1,0.75;8.4,6.5;code;code;".. code.."]"..
+		"button[1.25,-0.25;1.5,1;despawn;STOP]"..
+		"button[2.75,-0.25;1.5,1;inventory;inventory]"..
+		"button[5.25,-0.25;1,1;help;help]"..
+		"button_exit[7.25,-0.25;1,1;OK;save]";
+	end
+		
 	if mode ==1 then return form end
 	meta:set_string("formspec",form)
 
@@ -302,6 +310,8 @@ local function init_robot(self)
 	basic_robot.data[self.owner].obj = self.object; -- BUG: some problems with functions using object later??
 	self.object:set_properties({infotext = "robot " .. self.owner});
 	self.object:set_properties({nametag = "robot " .. self.owner,nametag_color = "LawnGreen"});
+	self.object:set_armor_groups({fleshy=0})
+	
 	initSandbox ( self.owner )
 end
 
@@ -312,7 +322,7 @@ minetest.register_entity("basic_robot:robot",{
 	code = "",
 	timer = 0,
 	timestep = 1, -- run every 1 second
-	spawnpos = "",
+	spawnpos = nil,
 	--visual="mesh",
 	--mesh = "character.b3d",
 	--textures={"character.png"},
@@ -326,10 +336,10 @@ minetest.register_entity("basic_robot:robot",{
 		
 	on_activate = function(self, staticdata)
 		
-		-- how to make it remember owner when it reactivates ?? staticdata seems to be empty
 		
-		self.object:set_armor_groups({fleshy=0})
-		if staticdata~="" then -- reactivate robot
+		
+		-- reactivate robot
+		if staticdata~="" then 
 			
 			self.owner = staticdata; -- remember its owner
 			if not basic_robot.data[self.owner] then
@@ -338,7 +348,7 @@ minetest.register_entity("basic_robot:robot",{
 				return;
 			end
 			
-			self.spawnpos = basic_robot.data[self.owner].spawnpos;
+			self.spawnpos = {x=basic_robot.data[self.owner].spawnpos.x,y=basic_robot.data[self.owner].spawnpos.y,z=basic_robot.data[self.owner].spawnpos.z};
 			init_robot(self);
 			self.running = 1;
 			
@@ -350,8 +360,11 @@ minetest.register_entity("basic_robot:robot",{
 		end
 		
 		-- init robot TODO: rewrite for less buggy
-		minetest.after(0, 
+		minetest.after(0, -- so that stuff with spawner is initialized before
 		function() 
+			
+			if not self.spawnpos then self.object:remove() return end
+			
 			if not basic_robot.data[self.owner] then
 				basic_robot.data[self.owner] = {};
 			end
@@ -363,15 +376,16 @@ minetest.register_entity("basic_robot:robot",{
 			if err then
 				minetest.chat_send_player(self.owner,"#ROBOT CODE COMPILATION ERROR : " .. err) 
 				self.running = 0; -- stop execution
+			
 				self.object:remove();
+				basic_robot.data[self.owner].obj = nil;
+				return
 			end
 			
 			self.running = 1
 			
 		end
 		)
-
-
 		
 	end,
 	
@@ -403,9 +417,17 @@ minetest.register_entity("basic_robot:robot",{
 					minetest.ban_player(owner)
 					
 				end
+				
+				local owner = self.owner;
+				local pos = basic_robot.data[owner].spawnpos;
+			
+				if not basic_robot.data[owner] then return end
+				if basic_robot.data[owner].obj then
+					basic_robot.data[owner].obj = nil;
+				end
+				
 				self.object:remove();
 			end
-			
 			return 
 		end
 		
@@ -416,7 +438,7 @@ minetest.register_entity("basic_robot:robot",{
 		local text = minetest.formspec_escape(self.code);
 		local form = robot_spawner_update_form(self.spawnpos,1);
 		
-		minetest.show_formspec(clicker:get_player_name(), "robot_code", form);
+		minetest.show_formspec(clicker:get_player_name(), "robot_worker_" .. self.owner, form);
 	 end,
 })
 
@@ -450,6 +472,7 @@ local spawn_robot = function(pos,node,ttl)
 	-- spawn robot on top
 	pos.y=pos.y+1;
 	local owner = meta:get_string("owner")
+	
 	-- if robot already exists do nothing
 	if basic_robot.data[owner] and basic_robot.data[owner].obj then
 		minetest.chat_send_player(owner,"#ROBOT ERROR : robot already active")
@@ -465,34 +488,9 @@ local spawn_robot = function(pos,node,ttl)
 	
 end
 
-minetest.register_node("basic_robot:spawner", {
-	description = "Spawns robot",
-	tiles = {"cpu.png"},
-	groups = {oddly_breakable_by_hand=2,mesecon_effector_on = 1},
-	drawtype = "allfaces",
-	paramtype = "light",
-	param1=1,
-	walkable = true,
-	alpha = 150,
-	after_place_node = function(pos, placer)
-		local meta = minetest.env:get_meta(pos)
-		meta:set_string("owner", placer:get_player_name()); 
-		local privs = minetest.get_player_privs(placer:get_player_name()); if privs.privs then meta:set_int("admin",1) end
-	
-		meta:set_string("code","");
-		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
-		robot_spawner_update_form(pos);
 
-		local inv = meta:get_inventory(); -- spawner inventory
-		inv:set_size("main",32);
-	end,
-
-	mesecons = {effector = {
-		action_on = spawn_robot 
-		}
-	},
-	
-	on_receive_fields = function(pos, formname, fields, sender)
+local on_receive_robot_form = function(pos, formname, fields, sender)
+		
 		
 		local name = sender:get_player_name();
 		if minetest.is_protected(pos,name) then return end
@@ -507,7 +505,6 @@ minetest.register_node("basic_robot:spawner", {
 		if fields.OK then
 			local privs = minetest.get_player_privs(sender:get_player_name());
 			local meta = minetest.get_meta(pos);
-			--minetest.chat_send_all("form at " .. dump(pos) .. " fields " .. dump(fields))
 			
 			if fields.code then 
 				local code = fields.code or "";
@@ -546,6 +543,7 @@ minetest.register_node("basic_robot:spawner", {
 		end
 		
 		if fields.despawn then
+			
 			local meta = minetest.get_meta(pos);
 			local owner = meta:get_string("owner");
 			
@@ -566,7 +564,58 @@ minetest.register_node("basic_robot:spawner", {
 			minetest.show_formspec(sender:get_player_name(), "robot_inventory", form);
 		end
 		
+	end
+
+-- handle form when rightclicking robot entity
+minetest.register_on_player_receive_fields(
+	function(player, formname, fields)
+		
+		local robot_formname = "robot_worker_";
+		if string.find(formname,robot_formname) then
+			local name = string.sub(formname, string.len(robot_formname)+1);
+			local sender = minetest.get_player_by_name(name);if not sender then return end
+			
+			if basic_robot.data[name] and basic_robot.data[name].spawnpos then
+				local pos = basic_robot.data[name].spawnpos;
+				
+				local privs = minetest.get_player_privs(player:get_player_name());
+				if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+				
+				on_receive_robot_form(pos,formname, fields, sender)
+			end
+		end
+	end
+)
+
+
+minetest.register_node("basic_robot:spawner", {
+	description = "Spawns robot",
+	tiles = {"cpu.png"},
+	groups = {oddly_breakable_by_hand=2,mesecon_effector_on = 1},
+	drawtype = "allfaces",
+	paramtype = "light",
+	param1=1,
+	walkable = true,
+	alpha = 150,
+	after_place_node = function(pos, placer)
+		local meta = minetest.env:get_meta(pos)
+		meta:set_string("owner", placer:get_player_name()); 
+		local privs = minetest.get_player_privs(placer:get_player_name()); if privs.privs then meta:set_int("admin",1) end
+	
+		meta:set_string("code","");
+		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
+		robot_spawner_update_form(pos);
+
+		local inv = meta:get_inventory(); -- spawner inventory
+		inv:set_size("main",32);
 	end,
+
+	mesecons = {effector = {
+		action_on = spawn_robot 
+		}
+	},
+	
+	on_receive_fields = on_receive_robot_form,
 	
 	allow_metadata_inventory_put = function(pos, listname, index, stack, player)
 		local meta = minetest.get_meta(pos);
