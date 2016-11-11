@@ -36,17 +36,15 @@ basic_robot.commands.move = function(name,dir)
 		minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" then 
 		return 
 	end
-	
+
 	obj:moveto(pos, true)
 end
-
 
 basic_robot.commands.turn = function (name, angle)
 	local obj = basic_robot.data[name].obj;
 	local yaw = obj:getyaw()+angle;
 	obj:setyaw(yaw);
 end
-
 
 basic_robot.commands.dig = function(name,dir)
 	local obj = basic_robot.data[name].obj;
@@ -71,6 +69,11 @@ basic_robot.commands.read_node = function(name,dir)
 	return minetest.get_node(pos).name or ""
 end
 
+basic_robot.commands.read_text = function(name,dir)
+	local obj = basic_robot.data[name].obj;
+	local pos = pos_in_dir(obj, dir)	
+	return minetest.get_meta(pos):get_string("infotext") or ""
+end
 
 basic_robot.commands.place = function(name,nodename, dir)
 	local obj = basic_robot.data[name].obj;
@@ -80,15 +83,11 @@ basic_robot.commands.place = function(name,nodename, dir)
 	if minetest.get_node(pos).name~="air" then return end
 	
 	local spos = obj:get_luaentity().spawnpos; 
-	
 	local meta = minetest.get_meta(spos);
-	
-	
 	local inv = meta:get_inventory();
 	if not inv then return end
 	if not inv:contains_item("main", ItemStack(nodename)) and meta:get_int("admin")~=1 then return end
 	inv:remove_item("main", ItemStack(nodename));	
-	
 	
 	minetest.set_node(pos,{name = nodename})
 end

@@ -20,12 +20,12 @@ function getSandboxEnv (name)
 		pcall=pcall,
 		ram = basic_robot.data[name].ram, -- "ram" - used to store variables
 		move = { -- changes position of robot
-			left = function() commands.move(name,1) end,
-			right = function() commands.move(name,2) end,
-			forward = function() commands.move(name,3) end,
-			backward = function() commands.move(name,4) end,
-			up = function() commands.move(name,5) end,
-			down = function() commands.move(name,6) end,
+			left = function() return commands.move(name,1) end,
+			right = function() return commands.move(name,2) end,
+			forward = function() return commands.move(name,3) end,
+			backward = function() return commands.move(name,4) end,
+			up = function() return commands.move(name,5) end,
+			down = function() return commands.move(name,6) end,
 		},
 		
 		turn = {
@@ -77,6 +77,15 @@ function getSandboxEnv (name)
 			backward = function() return commands.read_node(name,4) end,
 			down = function() return commands.read_node(name,6) end,
 			up = function() return commands.read_node(name,5) end,
+		},
+		
+		read_text = { -- returns node name
+			left = function() return commands.read_text(name,1) end,
+			right = function() return commands.read_text(name,2) end,
+			forward = function() return commands.read_text(name,3) end,
+			backward = function() return commands.read_text(name,4) end,
+			down = function() return commands.read_text(name,6) end,
+			up = function() return commands.read_text(name,5) end,
 		},
 		
 		say  = function(text)
@@ -227,13 +236,16 @@ minetest.register_entity("basic_robot:robot",{
 	timer = 0,
 	timestep = 1, -- run every 1 second
 	spawnpos = "",
+	--visual="mesh",
+	--mesh = "character.b3d",
+	--textures={"character.png"},
 	visual="cube",
+	textures={"arrow.png","basic_machine_side.png","face.png","basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},
+	
 	visual_size={x=1,y=1},
 	running = 0, -- does it run code or is it idle?	
 	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
 	physical=true,
-
-	textures={"arrow.png","basic_machine_side.png","face.png","basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},
 		
 	on_activate = function(self, staticdata)
 		
@@ -302,6 +314,18 @@ minetest.register_entity("basic_robot:robot",{
 			if err then 
 				minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
 				self.running = 0; -- stop execution
+				
+				if string.find(err,"stack overflow") then -- remove stupid player privs and spawner, ban player ip
+					local owner = self.owner;
+					local pos = basic_robot.data[owner].spawnpos;
+					minetest.set_node(pos, {name = "air"});
+				
+					local privs = core.get_player_privs(owner);privs.interact = false; 
+					
+					core.set_player_privs(owner, privs); minetest.auth_reload()
+					minetest.ban_player(owner)
+					
+				end
 				self.object:remove();
 			end
 			
@@ -425,6 +449,7 @@ minetest.register_node("basic_robot:spawner", {
 			"move.direction(), where direction is forward, backward, left,right, up, down\n"..
 			"turn.left(), turn.right(), turn.angle(45)\n"..
 			"dig.direction(), place.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
+			"read_text.direction() reads text of signs, chests and other blocks\n"..
 			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
 			"selfpos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"say(\"hello\") will speak";
