@@ -254,16 +254,12 @@ local function runSandbox( name)
 	basic_robot.data[name].ccounter = 0;
 	setfenv( ScriptFunc, basic_robot.data[name].sandbox )
 	
-	-- pcall(
-	-- function()
-		-- debug.sethook(error,"l")  -- raises error when next line is called
-		
 		local Result, RuntimeError = pcall( ScriptFunc )
 		if RuntimeError then
 			return RuntimeError
 		end
-	-- end)
-		minetest.chat_send_all("ccounter " .. basic_robot.data[name].ccounter)
+	
+		--minetest.chat_send_all("ccounter " .. basic_robot.data[name].ccounter)
     
     return nil
 end
