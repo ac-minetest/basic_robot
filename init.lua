@@ -6,7 +6,7 @@ basic_robot.call_limit = 32; -- how many execution calls per script execution al
 basic_robot.bad_inventory_blocks = {
 	["craft_guide:sign_wall"] = true,
 }
-
+basic_robot.version = "11/14a";
 
 
 basic_robot.data = {}; 
@@ -93,6 +93,11 @@ function getSandboxEnv (name)
 				else
 					basic_robot.data.listening[name] = nil
 				end
+			end,
+			
+			remove = function()
+				basic_robot.data[name].obj:remove();
+				basic_robot.data[name].obj=nil;
 			end,
 			
 			spam = function (mode) -- allow more than one msg per "say"
@@ -670,17 +675,20 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"**BOOKS/CODE\nbook.read(i) returns contents of book at i-th position in library \nbook.write(i,text) writes book at i-th position\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
 			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
+			"**PLAYERS\n"..
 			"find_player(3) finds player and returns his name in radius 3 around robot, if not returns false\n"..
 			"attack(target) attempts to attack target player if nearby \n"..
-			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
-			"self.spawnpos() returns position of spawner block\n"..
-			"self.viewdir() returns vector of view for robot\n"..
+			"player.getpos(name) return position of player, player.connected() returns list of players\n"..
+			"**ROBOT\n"..
+			"say(\"hello\") will speak\n"..
 			"self.listen(mode) (de)attaches chat listener to robot\n"..
 			"listen_msg() retrieves last chat message if robot listens\n"..
-			"player.getpos(name) return position of player, player.connected() returns list of players\n"..
-			"fire = function(speed, pitch,gravity) fires a projectile from robot\n"..
-			"say(\"hello\") will speak";
-			
+			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
+			"self.spam(1) enable message repeat to all\n"..
+			"self.remove() removes robot\n"..
+			"self.spawnpos() returns position of spawner block\n"..
+			"self.viewdir() returns vector of view for robot\n"..
+			"fire = function(speed, pitch,gravity) fires a projectile from robot\n";
 		
 			text = minetest.formspec_escape(text);
 			
@@ -744,8 +752,23 @@ minetest.register_on_player_receive_fields(
 				if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
 				
 				on_receive_robot_form(pos,formname, fields, sender)
+				return
 			end
 		end
+		
+		local robot_formname = "robot_control_";
+		if string.find(formname,robot_formname) then
+			local name = string.sub(formname, string.len(robot_formname)+1);
+			local sender = minetest.get_player_by_name(name); if not sender then return end
+			if fields.OK and fields.code then
+				local item = sender:get_wielded_item(); --set_wielded_item(item)
+				item:set_metadata(fields.code);
+				sender:set_wielded_item(item);
+			end
+			return
+		end
+		
+		
 	end
 )
 
@@ -817,6 +840,59 @@ minetest.register_node("basic_robot:spawner", {
 	end
 	
 })
+
+-- remote control
+minetest.register_craftitem("basic_robot:control", {
+	description = "Robot remote control",
+	inventory_image = "control.png",
+	groups = {book = 1, not_in_creative_inventory = 1},
+	stack_max = 1,
+	on_use = function(itemstack, user, pointed_thing)
+		
+		local name = user:get_player_name();
+		if user:get_player_control().sneak then
+			
+			local code = minetest.formspec_escape(itemstack:get_metadata());
+			local form = 
+			"size[9.5,1]" ..  -- width, height
+			"textarea[1.25,-0.25;8.75,3;code;;".. code.."]"..
+			"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]";
+			minetest.show_formspec(name, "robot_control_" .. name, form);
+			return
+		end		
+		
+		if basic_robot.data[name] and basic_robot.data[name].sandbox then
+			
+		else
+			minetest.chat_send_player(name, "#remote control: your robot must be running");
+			return
+		end
+		
+		script = itemstack:get_metadata();
+		local ScriptFunc, CompileError = loadstring( script )
+		if CompileError then
+			minetest.chat_send_player(name, "#remote control: compile error " .. CompileError )
+			return
+		end
+		
+		setfenv( ScriptFunc, basic_robot.data[name].sandbox )
+		
+		local Result, RuntimeError = pcall( ScriptFunc );
+		if RuntimeError then
+			minetest.chat_send_player(name, "#remote control: run error " .. RuntimeError )
+			return
+		end
+	end,
+})
+
+minetest.register_craft({
+	output = "basic_robot:control",
+	recipe = {
+		{"default:stick"},
+		{"default:mese_crystal"}
+	}
+})
+
 
 
 minetest.register_craft({
