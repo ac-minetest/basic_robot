@@ -146,12 +146,12 @@ function getSandboxEnv (name)
 		},
 		
 		read_text = { -- returns node name
-			left = function() return commands.read_text(name,1) end,
-			right = function() return commands.read_text(name,2) end,
-			forward = function() return commands.read_text(name,3) end,
-			backward = function() return commands.read_text(name,4) end,
-			down = function() return commands.read_text(name,6) end,
-			up = function() return commands.read_text(name,5) end,
+			left = function(stringname) return commands.read_text(name,1,stringname	) end,
+			right = function(stringname) return commands.read_text(name,2,stringname) end,
+			forward = function(stringname) return commands.read_text(name,3,stringname) end,
+			backward = function(stringname) return commands.read_text(name,4,stringname) end,
+			down = function(stringname) return commands.read_text(name,6,stringname) end,
+			up = function(stringname) return commands.read_text(name,5,stringname) end,
 		},
 		
 		say = function(text)
@@ -177,19 +177,35 @@ function getSandboxEnv (name)
 			local obj = basic_robot.data[name].obj;
 			local pos = obj:getpos();
 			local yaw = obj:getyaw();
+			pitch = pitch*math.pi/180
+			local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
 			-- fire particle
-			minetest.add_particle(
-			{
-			pos = pos,
-			expirationtime = 10,
-			velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
-			size = 5,
-			texture = "default_apple.png",
-			acceleration = {x=0,y=-gravity,z=0},
-			collisiondetection = true,
-			collision_removal = true,			
-			}
-			);
+			-- minetest.add_particle(
+			-- {
+				-- pos = pos,
+				-- expirationtime = 10,
+				-- velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
+				-- size = 5,
+				-- texture = "default_apple.png",
+				-- acceleration = {x=0,y=-gravity,z=0},
+				-- collisiondetection = true,
+				-- collision_removal = true,			
+			-- }
+			--);
+			
+			local obj = minetest.add_entity(pos, "basic_robot:projectile");
+			if not obj then return end
+			obj:setvelocity(velocity);
+			obj:setacceleration({x=0,y=-gravity,z=0});
+			local luaent = obj:get_luaentity();
+			luaent.owner = name;
+		
+		end,
+		
+		fire_pos = function() 
+			local fire_pos = basic_robot.data[name].fire_pos;
+			basic_robot.data[name].fire_pos = nil; 
+			return fire_pos
 		end,
 		
 		book = {
@@ -220,6 +236,22 @@ function getSandboxEnv (name)
 					local obj = basic_robot.data[name].obj;
 					obj:remove();
 					basic_robot.data[name].obj = nil;
+					return
+				end
+			end,
+			
+			run = function(script)
+				local ScriptFunc, CompileError = loadstring( script )
+				if CompileError then
+					minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
+					return
+				end
+			
+				setfenv( ScriptFunc, basic_robot.data[name].sandbox )
+			
+				local Result, RuntimeError = pcall( ScriptFunc );
+				if RuntimeError then
+					minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
 					return
 				end
 			end
@@ -477,16 +509,15 @@ minetest.register_entity("basic_robot:robot",{
 	physical=true,
 		
 	on_activate = function(self, staticdata)
-		
-		
+
 		
 		-- reactivate robot
 		if staticdata~="" then 
 			
 			self.owner = staticdata; -- remember its owner
 			if not basic_robot.data[self.owner] then
-				self.object:remove(); 
 				minetest.chat_send_player(self.owner, "#ROBOT INIT:  error. spawn robot again.")
+				self.object:remove(); 
 				return;
 			end
 			
@@ -497,6 +528,10 @@ minetest.register_entity("basic_robot:robot",{
 			local pos =  basic_robot.data[self.owner].spawnpos;
 			local meta =  minetest.get_meta(pos);
 			if meta then self.code = meta:get_string("code") end -- remember code
+			if not self.code or self.code == "" then
+				minetest.chat_send_player(self.owner, "#ROBOT INIT:  no code fount")
+				self.object:remove(); 
+			end
 			
 			return
 		end
@@ -585,7 +620,6 @@ minetest.register_entity("basic_robot:robot",{
 })
 
 
-
 local spawn_robot = function(pos,node,ttl)
 	if ttl<0 then return end
 	
@@ -633,7 +667,6 @@ end
 
 local on_receive_robot_form = function(pos, formname, fields, sender)
 		
-		
 		local name = sender:get_player_name();
 		if minetest.is_protected(pos,name) then return end
 		
@@ -645,7 +678,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		end
 		
 		if fields.OK then
-			local privs = minetest.get_player_privs(sender:get_player_name());
+			
 			local meta = minetest.get_meta(pos);
 			
 			if fields.code then 
@@ -662,17 +695,17 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			local text =  "BASIC LUA SYNTAX\n \nif x==1 then do_something else do_something_else end"..
 			"\nfor i = 1, 5 do something end \nwhile i<6 do something; i=i+1; end\n"..
 			"\narrays: myTable1 = {1,2,3},  myTable2 = {[\"entry1\"]=5, [\"entry2\"]=1}\n"..
-			"access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n"..
-			
-			"\nROBOT COMMANDS\n\n"..
-			"**MOVEMENT,DIGGING,INVENTORT TAKE/INSERT\nmove.direction(), where direction is forward, backward, left,right, up, down)\n"..
+			"access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n \n"..
+			"ROBOT COMMANDS\n \n"..
+			"**MOVEMENT,DIGGING, PLACING, INVENTORY TAKE/INSERT\nmove.direction(), where direction is forward, backward, left,right, up, down)\n"..
 			"forward_down direction only works with dig, place and read_node\n"..
 			"turn.left(), turn.right(), turn.angle(45)\n"..
-			"dig.direction(), place.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
+			"dig.direction()\n place.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
 			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
-			"read_text.direction() reads text of signs, chests and other blocks\n"..
+			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
 			"**BOOKS/CODE\nbook.read(i) returns contents of book at i-th position in library \nbook.write(i,text) writes book at i-th position\n"..
+			"code.run(text) compiles and runs the code in sandbox\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
 			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
 			"**PLAYERS\n"..
@@ -681,18 +714,24 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"player.getpos(name) return position of player, player.connected() returns list of players\n"..
 			"**ROBOT\n"..
 			"say(\"hello\") will speak\n"..
-			"self.listen(mode) (de)attaches chat listener to robot\n"..
-			"listen_msg() retrieves last chat message if robot listens\n"..
+			"self.listen(0/1) (de)attaches chat listener to robot\n"..
+			"speaker, msg = listen_msg() retrieves last chat message if robot listens\n"..
 			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
-			"self.spam(1) enable message repeat to all\n"..
+			"self.spam(0/1) (dis)enable message repeat to all\n"..
 			"self.remove() removes robot\n"..
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
-			"fire = function(speed, pitch,gravity) fires a projectile from robot\n";
+			"fire(speed, pitch,gravity) fires a projectile from robot\n"..
+			"fire_pos() returns last hit position\n ";
 		
 			text = minetest.formspec_escape(text);
 			
-			local form = "size [8,7] textarea[0,0;8.5,8.5;help;HELP;".. text.."]"
+			--local form = "size [8,7] textarea[0,0;8.5,8.5;help;HELP;".. text.."]"
+			
+			--textlist[X,Y;W,H;name;listelem 1,listelem 2,...,listelem n]
+			local list = "";
+			for word in string.gmatch(text, "(.-)\r?\n+") do list = list .. word .. ", " end
+			local form = "size [8,8] textlist[-0.25,-0.25;8.25,8.5;help;" .. list .. "]"
 			minetest.show_formspec(sender:get_player_name(), "robot_help", form);
 			
 			return
@@ -743,15 +782,21 @@ minetest.register_on_player_receive_fields(
 		local robot_formname = "robot_worker_";
 		if string.find(formname,robot_formname) then
 			local name = string.sub(formname, string.len(robot_formname)+1);
-			local sender = minetest.get_player_by_name(name);if not sender then return end
+			local sender = minetest.get_player_by_name(name);
 			
 			if basic_robot.data[name] and basic_robot.data[name].spawnpos then
 				local pos = basic_robot.data[name].spawnpos;
 				
 				local privs = minetest.get_player_privs(player:get_player_name());
-				if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+				local is_protected = minetest.is_protected(pos, player:get_player_name());
+				if is_protected and not privs.privs then return 0 end 
 				
-				on_receive_robot_form(pos,formname, fields, sender)
+				if not sender then 
+					on_receive_robot_form(pos,formname, fields, player)
+				else
+					on_receive_robot_form(pos,formname, fields, sender)
+				end
+				
 				return
 			end
 		end
@@ -847,6 +892,19 @@ minetest.register_craftitem("basic_robot:control", {
 	inventory_image = "control.png",
 	groups = {book = 1, not_in_creative_inventory = 1},
 	stack_max = 1,
+	
+	on_secondary_use = function(itemstack, user, pointed_thing)
+		
+			local name = user:get_player_name();
+			local code = minetest.formspec_escape(itemstack:get_metadata());
+			local form = 
+			"size[9.5,1]" ..  -- width, height
+			"textarea[1.25,-0.25;8.75,3;code;;".. code.."]"..
+			"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]";
+			minetest.show_formspec(name, "robot_control_" .. name, form);
+			return
+	end,
+	
 	on_use = function(itemstack, user, pointed_thing)
 		
 		local name = user:get_player_name();
@@ -884,6 +942,51 @@ minetest.register_craftitem("basic_robot:control", {
 		end
 	end,
 })
+
+
+minetest.register_entity(
+	"basic_robot:projectile",
+	{
+		hp_max = 1,
+		physical = true,
+		collide_with_objects = true,
+		weight = 5,
+		collisionbox = {-0.15,-0.15,-0.15, 0.15,0.15,0.15},
+		visual ="sprite",	
+		visual_size = {x=0.5, y=0.5},
+		textures = {"default_diamond_block.png"},
+		is_visible = true,
+		oldvel = {x=0,y=0,z=0},
+		owner = "",
+
+		--on_activate = function(self, staticdata)
+		--		self.object:remove()
+		--end,
+
+		--get_staticdata = function(self)
+		--	return nil
+		--end,
+
+		on_step = function(self, dtime)
+			local vel = self.object:getvelocity();
+			if (self.oldvel.x~=0 and vel.x==0) or (self.oldvel.y~=0 and vel.y==0) or (self.oldvel.z~=0 and vel.z==0) then
+				if basic_robot.data[self.owner] then
+					basic_robot.data[self.owner].fire_pos = self.object:getpos();
+				end
+				self.object:remove()
+				return
+			end
+			self.oldvel = vel;
+			
+			end
+	})
+
+
+
+
+
+
+
 
 minetest.register_craft({
 	output = "basic_robot:control",
