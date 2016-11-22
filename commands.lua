@@ -78,6 +78,13 @@ basic_robot.commands.turn = function (name, angle)
 end
 
 basic_robot.commands.dig = function(name,dir)
+	
+	local digcount = 0;
+	if basic_robot.maxdig~=0 then
+		digcount = basic_robot.data[name].digcount;
+		if digcount > basic_robot.maxdig then return false end
+	end
+	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
@@ -93,7 +100,7 @@ basic_robot.commands.dig = function(name,dir)
 	
 	basic_robot.give_drops(nodename, inv);
 	minetest.set_node(pos,{name = "air"})
-	
+	basic_robot.data[name].digcount = digcount+1;
 	
 	--DS: sounds
 	local sounds = minetest.registered_nodes[nodename].sounds

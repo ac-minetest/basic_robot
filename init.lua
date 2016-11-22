@@ -6,7 +6,11 @@ basic_robot.call_limit = 32; -- how many execution calls per script execution al
 basic_robot.bad_inventory_blocks = {
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.version = "11/14a";
+basic_robot.maxdig = 1; -- how many digs allowed per execution,  0 = unlimited
+
+
+
+basic_robot.version = "11/22a";
 
 
 basic_robot.data = {}; 
@@ -417,6 +421,8 @@ local function runSandbox( name)
 	end	
 	
 	basic_robot.data[name].ccounter = 0;
+	basic_robot.data[name].digcount = 1;
+	
 	setfenv( ScriptFunc, basic_robot.data[name].sandbox )
 	
 		local Result, RuntimeError = pcall( ScriptFunc )
@@ -529,7 +535,7 @@ minetest.register_entity("basic_robot:robot",{
 			local meta =  minetest.get_meta(pos);
 			if meta then self.code = meta:get_string("code") end -- remember code
 			if not self.code or self.code == "" then
-				minetest.chat_send_player(self.owner, "#ROBOT INIT:  no code fount")
+				minetest.chat_send_player(self.owner, "#ROBOT INIT:  no code found")
 				self.object:remove(); 
 			end
 			
@@ -813,6 +819,35 @@ minetest.register_on_player_receive_fields(
 			return
 		end
 		
+		local robot_formname = "robot_manual_control_";
+		if string.find(formname,robot_formname) then
+			local name = string.sub(formname, string.len(robot_formname)+1);
+			local sender = minetest.get_player_by_name(name); if not sender then return end
+			local commands = basic_robot.commands;
+			
+			if fields.turnleft then
+				pcall(function () commands.turn(name,math.pi/2) end)
+			elseif fields.turnright then
+				pcall(function () commands.turn(name,-math.pi/2) end)
+			elseif fields.forward then
+				pcall(function () commands.move(name,3) end)
+			elseif fields.back then
+				pcall(function () commands.move(name,4) end)
+			elseif fields.left then
+				pcall(function () commands.move(name,1) end)
+			elseif fields.right then
+				pcall(function () commands.move(name,2) end)
+			elseif fields.dig then
+				pcall(function () commands.dig(name,3) end)
+			elseif fields.up then
+				pcall(function () commands.move(name,5) end)
+			elseif fields.down then
+				pcall(function () commands.move(name,6) end)
+			elseif fields.digdown then
+				pcall(function () commands.dig(name,6) end)
+			end
+			return
+		end
 		
 	end
 )
@@ -886,6 +921,27 @@ minetest.register_node("basic_robot:spawner", {
 	
 })
 
+
+local get_manual_control_form = function(name)
+	local form = 
+			"size[2.5,3]" ..  -- width, height
+			"button[-0.25,-0.25;1.,1;turnleft;TLeft]"..
+			"button[0.75,-0.25;1.,1;forward;GO]"..
+			"button[1.75,-0.25;1.,1;turnright;TRight]"..
+			"button[-0.25,0.75;1.,1;left;LEFT]"..
+			"button[0.75,0.75;1.,1;dig;DIG]"..
+			"button[1.75,0.75;1.,1;right;RIGHT]"..
+			
+			"button[-0.25,1.75;1.,1;down;DOWN]"..
+			"button[0.75,1.75;1.,1;back;BACK]"..
+			"button[1.75,1.75;1.,1;up;UP]"..
+			
+			"button[0.75,2.75;1.,1;digdown;DDown]";
+			
+	return form;
+end
+
+
 -- remote control
 minetest.register_craftitem("basic_robot:control", {
 	description = "Robot remote control",
@@ -908,16 +964,6 @@ minetest.register_craftitem("basic_robot:control", {
 	on_use = function(itemstack, user, pointed_thing)
 		
 		local name = user:get_player_name();
-		if user:get_player_control().sneak then
-			
-			local code = minetest.formspec_escape(itemstack:get_metadata());
-			local form = 
-			"size[9.5,1]" ..  -- width, height
-			"textarea[1.25,-0.25;8.75,3;code;;".. code.."]"..
-			"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]";
-			minetest.show_formspec(name, "robot_control_" .. name, form);
-			return
-		end		
 		
 		if basic_robot.data[name] and basic_robot.data[name].sandbox then
 			
@@ -926,7 +972,20 @@ minetest.register_craftitem("basic_robot:control", {
 			return
 		end
 		
+		local t0 = basic_robot.data[name].remoteuse or 0; -- prevent too fast remote use
+		local t1 = minetest.get_gametime();
+		if t1-t0<1 then return end
+		basic_robot.data[name].remoteuse = t1;
+		
+		
 		script = itemstack:get_metadata();
+		if script == "" then
+			--display control form
+			minetest.show_formspec(name, "robot_manual_control_" .. name, get_manual_control_form(name));
+			return
+		end
+		
+		
 		local ScriptFunc, CompileError = loadstring( script )
 		if CompileError then
 			minetest.chat_send_player(name, "#remote control: compile error " .. CompileError )
@@ -979,14 +1038,7 @@ minetest.register_entity(
 			self.oldvel = vel;
 			
 			end
-	})
-
-
-
-
-
-
-
+})
 
 minetest.register_craft({
 	output = "basic_robot:control",
@@ -995,8 +1047,6 @@ minetest.register_craft({
 		{"default:mese_crystal"}
 	}
 })
-
-
 
 minetest.register_craft({
 	output = "basic_robot:spawner",
