@@ -10,7 +10,7 @@ basic_robot.maxdig = 1; -- how many digs allowed per execution,  0 = unlimited
 
 
 
-basic_robot.version = "11/22a";
+basic_robot.version = "11/26a";
 
 
 basic_robot.data = {}; 
@@ -99,6 +99,28 @@ function getSandboxEnv (name)
 				end
 			end,
 			
+			listen_msg = function() 
+				local msg = basic_robot.data[name].listen_msg;
+				local speaker = basic_robot.data[name].listen_speaker;
+				basic_robot.data[name].listen_msg = nil; 
+				basic_robot.data[name].listen_speaker = nil; 
+				return speaker,msg
+			end,
+
+			read_mail = function()
+				local mail = basic_robot.data[name].listen_mail;
+				local sender = basic_robot.data[name].listen_sender;
+				basic_robot.data[name].listen_mail = nil; 
+				basic_robot.data[name].listen_sender = nil; 
+				return sender,mail
+			end,
+			
+			send_mail = function(target,mail)
+				if not basic_robot.data[target] then return false end
+				basic_robot.data[target].listen_mail = mail; 
+				basic_robot.data[target].listen_sender = name; 
+			end,			
+			
 			remove = function()
 				basic_robot.data[name].obj:remove();
 				basic_robot.data[name].obj=nil;
@@ -110,6 +132,41 @@ function getSandboxEnv (name)
 				else
 					basic_robot.data[name].allow_spam = nil
 				end
+			end,
+			
+			fire = function(speed, pitch,gravity) -- experimental: fires an projectile
+				local obj = basic_robot.data[name].obj;
+				local pos = obj:getpos();
+				local yaw = obj:getyaw();
+				pitch = pitch*math.pi/180
+				local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
+				-- fire particle
+				-- minetest.add_particle(
+				-- {
+					-- pos = pos,
+					-- expirationtime = 10,
+					-- velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
+					-- size = 5,
+					-- texture = "default_apple.png",
+					-- acceleration = {x=0,y=-gravity,z=0},
+					-- collisiondetection = true,
+					-- collision_removal = true,			
+				-- }
+				--);
+				
+				local obj = minetest.add_entity(pos, "basic_robot:projectile");
+				if not obj then return end
+				obj:setvelocity(velocity);
+				obj:setacceleration({x=0,y=-gravity,z=0});
+				local luaent = obj:get_luaentity();
+				luaent.owner = name;
+		
+			end,
+			
+			fire_pos = function() 
+				local fire_pos = basic_robot.data[name].fire_pos;
+				basic_robot.data[name].fire_pos = nil; 
+				return fire_pos
 			end,
 		},
 		
@@ -169,48 +226,6 @@ function getSandboxEnv (name)
 			end
 		end,
 		
-		listen_msg = function() 
-			local msg = basic_robot.data[name].listen_msg;
-			local speaker = basic_robot.data[name].listen_speaker;
-			basic_robot.data[name].listen_msg = nil; 
-			basic_robot.data[name].listen_speaker = nil; 
-			return speaker,msg
-		end,
-		
-		fire = function(speed, pitch,gravity) -- experimental: fires an projectile
-			local obj = basic_robot.data[name].obj;
-			local pos = obj:getpos();
-			local yaw = obj:getyaw();
-			pitch = pitch*math.pi/180
-			local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
-			-- fire particle
-			-- minetest.add_particle(
-			-- {
-				-- pos = pos,
-				-- expirationtime = 10,
-				-- velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
-				-- size = 5,
-				-- texture = "default_apple.png",
-				-- acceleration = {x=0,y=-gravity,z=0},
-				-- collisiondetection = true,
-				-- collision_removal = true,			
-			-- }
-			--);
-			
-			local obj = minetest.add_entity(pos, "basic_robot:projectile");
-			if not obj then return end
-			obj:setvelocity(velocity);
-			obj:setacceleration({x=0,y=-gravity,z=0});
-			local luaent = obj:get_luaentity();
-			luaent.owner = name;
-		
-		end,
-		
-		fire_pos = function() 
-			local fire_pos = basic_robot.data[name].fire_pos;
-			basic_robot.data[name].fire_pos = nil; 
-			return fire_pos
-		end,
 		
 		book = {
 			read = function(i) 
@@ -248,7 +263,7 @@ function getSandboxEnv (name)
 				local ScriptFunc, CompileError = loadstring( script )
 				if CompileError then
 					minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
-					return
+					return false
 				end
 			
 				setfenv( ScriptFunc, basic_robot.data[name].sandbox )
@@ -256,8 +271,9 @@ function getSandboxEnv (name)
 				local Result, RuntimeError = pcall( ScriptFunc );
 				if RuntimeError then
 					minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
-					return
+					return false
 				end
+				return true
 			end
 		},
 		
@@ -325,7 +341,7 @@ end
 local function check_code(code)
   
   --"while ", "for ", "do ","goto ", 
-  local bad_code = {"repeat ", "until ", "_ccounter"}
+  local bad_code = {"repeat ", "until ", "_ccounter", "_G", "while%(", "while{", "pcall"}
 	
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
@@ -335,6 +351,34 @@ local function check_code(code)
 
 end
 
+
+local function is_inside_string(pos,script)
+	local i1=string.find (script, "\"", 1);
+	if not i1 then 
+		return false 
+	end
+	local i2=0;
+	local par = 1;
+
+	if pos<i1 then 
+		return false 
+	end
+	while i1 do
+		i2=string.find(script,"\"",i1+1);
+		if i2 then
+			par = 1 - par;
+		end
+		if par == 0 then
+			if i1<pos and pos<i2 then 
+				return true 
+			end
+		end
+		i1=i2;  
+	end
+	return false;
+end
+
+
 local function CompileCode ( script )
    
 	--[[ idea: in each local a = function (args) ... end insert counter like:
@@ -342,7 +386,9 @@ local function CompileCode ( script )
 	when counter exceeds limit exit with error
 	--]]
 	
+	
 	script="_ccounter = 0; " .. script;
+	
 	local i1 -- process script to insert call counter in every function
 	local insert_code = " increase_ccounter(); ";
 
@@ -350,44 +396,55 @@ local function CompileCode ( script )
 	
 	while (i2) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
 		i2 = nil;
+		
 		i2=string.find (script, "function", i1) -- fix functions
 		
 		if i2 then
-			i2=string.find(script, ")", i2);
-			if i2 then 
-				script = script.sub(script,1, i2) .. insert_code .. script.sub(script, i2+1); 
-				i1=i2+string.len(insert_code);
+			if not is_inside_string(i2,script) then
+				i2=string.find(script, ")", i2);
+				if i2 then 
+					script = script.sub(script,1, i2) .. insert_code .. script.sub(script, i2+1); 
+					i1=i2+string.len(insert_code);
+				end
 			end
 		
 		end
 		
 		i2=string.find (script, "for ", i1) -- fix for OK
 		if i2 then
-			i2=string.find(script, "do", i2);
-			if i2 then 
-				script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
-				i1=i2+string.len(insert_code);
+			if not is_inside_string(i2,script) then
+				i2=string.find(script, "do ", i2);
+				if i2 then 
+					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+					i1=i2+string.len(insert_code);
+				end
 			end
-		
 		end
 		
 		i2=string.find (script, "while ", i1) -- fix while OK
 		if i2 then
-			i2=string.find(script, "do", i2);
-			if i2 then 
-				script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
-				i1=i2+string.len(insert_code);
+			if not is_inside_string(i2,script) then
+				i2=string.find(script, "do ", i2);
+				if i2 then 
+					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+					i1=i2+string.len(insert_code);
+				end
 			end
 		end
 		
 		i2=string.find (script, "goto ", i1) -- fix goto OK
-		
+			
 		if i2 then
-			script = script.sub(script,1, i2-1) .. insert_code .. script.sub(script, i2); 
-			i1=i2+string.len(insert_code)+5; -- insert + skip goto
+			if not is_inside_string(i2,script) then
+				script = script.sub(script,1, i2-1) .. insert_code .. script.sub(script, i2); 
+				i1=i2+string.len(insert_code)+5; -- insert + skip goto
+			end
 		end
 		
 	end
+	
+	--minetest.chat_send_all(script)
+	--if true then return nil, "" end
 	
 	local ScriptFunc, CompileError = loadstring( script )
 	if CompileError then
@@ -657,8 +714,9 @@ local spawn_robot = function(pos,node,ttl)
 	
 	-- if robot already exists do nothing
 	if basic_robot.data[owner] and basic_robot.data[owner].obj then
-		minetest.chat_send_player(owner,"#ROBOT ERROR : robot already active")
-		return 
+		minetest.chat_send_player(owner,"#ROBOT: robot already active, removing")
+		basic_robot.data[owner].obj:remove();
+		basic_robot.data[owner].obj = nil;
 	end
 	
 	local obj = minetest.add_entity(pos,"basic_robot:robot");
@@ -721,14 +779,16 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"**ROBOT\n"..
 			"say(\"hello\") will speak\n"..
 			"self.listen(0/1) (de)attaches chat listener to robot\n"..
-			"speaker, msg = listen_msg() retrieves last chat message if robot listens\n"..
+			"speaker, msg = self.listen_msg() retrieves last chat message if robot listens\n"..
+			"self.send_mail(target,mail) sends mail to target robot\n"..
+			"sender,mail = read_mail() reads mail, if any\n" ..
 			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"self.spam(0/1) (dis)enable message repeat to all\n"..
 			"self.remove() removes robot\n"..
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
-			"fire(speed, pitch,gravity) fires a projectile from robot\n"..
-			"fire_pos() returns last hit position\n ";
+			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
+			"self.fire_pos() returns last hit position\n ";
 		
 			text = minetest.formspec_escape(text);
 			
@@ -838,13 +898,15 @@ minetest.register_on_player_receive_fields(
 			elseif fields.right then
 				pcall(function () commands.move(name,2) end)
 			elseif fields.dig then
-				pcall(function () commands.dig(name,3) end)
+				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,3) end)
 			elseif fields.up then
 				pcall(function () commands.move(name,5) end)
 			elseif fields.down then
 				pcall(function () commands.move(name,6) end)
 			elseif fields.digdown then
-				pcall(function () commands.dig(name,6) end)
+				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,6) end)
+			elseif fields.digup then
+				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,5) end)
 			end
 			return
 		end
@@ -936,7 +998,8 @@ local get_manual_control_form = function(name)
 			"button[0.75,1.75;1.,1;back;BACK]"..
 			"button[1.75,1.75;1.,1;up;UP]"..
 			
-			"button[0.75,2.75;1.,1;digdown;DDown]";
+			"button[-0.25,2.65;1.,1;digdown;DDown]"..
+			"button[1.75,2.65;1.,1;digup;DUp]";
 			
 	return form;
 end
