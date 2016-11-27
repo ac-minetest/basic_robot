@@ -164,14 +164,15 @@ basic_robot.commands.take_item = function(name,item, inventory,dir)
 	if not inventory then inventory = "main"; end
 	--if not inv then return end
 	local stack = ItemStack(item);
-	if (not tinv:contains_item(inventory, stack) or not inv:room_for_item("main", stack)) and meta:get_int("admin")~=1 then
+	local contains = tinv:contains_item(inventory, stack); 
+	if (not contains or not inv:room_for_item("main", stack)) and meta:get_int("admin")~=1 then
 		return false 
 	end
 	
 	inv:add_item("main",stack);
 	tinv:remove_item(inventory, stack);
 
-	return true
+	return contains
 end
 
 

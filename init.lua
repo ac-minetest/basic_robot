@@ -341,7 +341,7 @@ end
 local function check_code(code)
   
   --"while ", "for ", "do ","goto ", 
-  local bad_code = {"repeat ", "until ", "_ccounter", "_G", "while%(", "while{", "pcall"}
+  local bad_code = {"repeat ", "until ", "_ccounter", "_G", "while%(", "while{", "pcall","\\\""}
 	
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
@@ -392,19 +392,37 @@ local function CompileCode ( script )
 	local i1 -- process script to insert call counter in every function
 	local insert_code = " increase_ccounter(); ";
 
-	local i1=0; local i2 = 0;
+	local i1=0; local i2 = 0; 
+	local found = true;
 	
-	while (i2) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
+	while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
+		
+		found = false;
 		i2 = nil;
+
+		i2=string.find (script, "while ", i1) -- fix while OK
+		if i2 then
+			--minetest.chat_send_all("while0");
+			if not is_inside_string(i2,script) then
+				local i21 = i2;
+				i2=string.find(script, "do ", i2);
+				if i2 then 
+					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+					i1=i21+6; -- after while
+					found = true;
+				end
+			end
+		end
 		
 		i2=string.find (script, "function", i1) -- fix functions
-		
 		if i2 then
+			--minetest.chat_send_all("func0")
 			if not is_inside_string(i2,script) then
 				i2=string.find(script, ")", i2);
 				if i2 then 
 					script = script.sub(script,1, i2) .. insert_code .. script.sub(script, i2+1); 
 					i1=i2+string.len(insert_code);
+					found = true;
 				end
 			end
 		
@@ -417,29 +435,21 @@ local function CompileCode ( script )
 				if i2 then 
 					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
 					i1=i2+string.len(insert_code);
+					found = true;
 				end
 			end
 		end
 		
-		i2=string.find (script, "while ", i1) -- fix while OK
-		if i2 then
-			if not is_inside_string(i2,script) then
-				i2=string.find(script, "do ", i2);
-				if i2 then 
-					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
-					i1=i2+string.len(insert_code);
-				end
-			end
-		end
 		
 		i2=string.find (script, "goto ", i1) -- fix goto OK
-			
 		if i2 then
 			if not is_inside_string(i2,script) then
 				script = script.sub(script,1, i2-1) .. insert_code .. script.sub(script, i2); 
 				i1=i2+string.len(insert_code)+5; -- insert + skip goto
+				found = true;
 			end
 		end
+		--minetest.chat_send_all("code rem " .. string.sub(script,i1))
 		
 	end
 	
@@ -490,15 +500,7 @@ local function runSandbox( name)
     return nil
 end
 
-
-
 -- note: to see memory used by lua in kbytes: collectgarbage("count")
--- /spawnentity basic_robot:robot
-
--- TODO.. display form when right click robot
-local function update_formspec_robot(self)
-	
-end
 
 
 local robot_spawner_update_form = function (pos, mode)
