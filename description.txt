@@ -1,0 +1,43 @@
+basic_robot is a robot for minetest, usable in multiplayer.
+It can move around, sense blocks and players, and build/dig.
+Programs for it are written in lua.
+
+Instructions
+------------
+0. Craft a spawner for the robot with this recipe:
+ M M M
+ M M M
+ S I S  with M=mese_crystal, S=stone, I=steel_ingot.
+Or use creative mode, or the command "/giveme basic_robot:spawner".
+
+1. Place spawner on ground and rightclick it to write a program.
+ To save the program, click the SAVE-button.
+
+2. Press START to create a robot that runs the program.
+ Press STOP to end the program and remove the robot.
+ The Spawner can also be activated by a signal (mesecons mod, basic_machines mod).
+
+3. Ingame help: rightclick spawner, then click HELP-button.
+
+4. To pick up the spawner, its inventory and library must be empty.
+
+
+Example program
+---------------
+-- Robot moves forward, turns if it hits a wall.
+-- Robot can move 1 block above the ground.
+-- Execution of the code repeats every second.
+--
+if (i==nil) then say("Demo"); i=0 end
+
+if read_node.forward()~="air" then
+   turn.right()
+else
+  move.forward()
+end
+
+
+(c) 2016-11 by rnd, License: LGPL
+
+https://github.com/ac-minetest/basic_robot
+https://forum.minetest.net/viewtopic.php?f=9&t=15850
