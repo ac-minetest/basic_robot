@@ -84,8 +84,13 @@ function getSandboxEnv (name)
 			down = function(item, inventory) commands.take_item(name,item, inventory,6) end,
 			up = function(item, inventory) commands.take_item(name,item, inventory,5) end,
 		
-		}, -- take item from inventory TODO
+		},
+		
+		pickup = function(r) -- pick up items around robot
+			commands.pickup(r, name);
+		end,
 
+		
 		self = {
 			pos = function() return basic_robot.data[name].obj:getpos() end,
 			spawnpos = function() return basic_robot.data[name].spawnpos end,
@@ -167,6 +172,11 @@ function getSandboxEnv (name)
 				local fire_pos = basic_robot.data[name].fire_pos;
 				basic_robot.data[name].fire_pos = nil; 
 				return fire_pos
+			end,
+			
+			label = function(text)
+				local obj = basic_robot.data[name].obj;
+				obj:set_properties({nametag = "[" .. name .. "] " .. text});
 			end,
 		},
 		
@@ -367,6 +377,8 @@ local function is_inside_string(pos,script)
 		i2=string.find(script,"\"",i1+1);
 		if i2 then
 			par = 1 - par;
+		else
+			return false
 		end
 		if par == 0 then
 			if i1<pos and pos<i2 then 
@@ -547,7 +559,7 @@ local function init_robot(self)
 	basic_robot.data[self.owner].quiet_mode = false;
 	
 	self.object:set_properties({infotext = "robot " .. self.owner});
-	self.object:set_properties({nametag = "robot " .. self.owner,nametag_color = "LawnGreen"});
+	self.object:set_properties({nametag = "[" .. self.owner.."]",nametag_color = "LawnGreen"});
 	self.object:set_armor_groups({fleshy=0})
 	
 	initSandbox ( self.owner )
@@ -768,6 +780,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"turn.left(), turn.right(), turn.angle(45)\n"..
 			"dig.direction()\n place.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
 			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
+			"pickup(r) picks up all items around robot in radius r<8\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
 			"**BOOKS/CODE\nbook.read(i) returns contents of book at i-th position in library \nbook.write(i,text) writes book at i-th position\n"..
@@ -790,7 +803,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
 			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
-			"self.fire_pos() returns last hit position\n ";
+			"self.fire_pos() returns last hit position\n "..
+			"self.label(text) changes robot label";
 		
 			text = minetest.formspec_escape(text);
 			

@@ -82,7 +82,9 @@ basic_robot.commands.dig = function(name,dir)
 	local digcount = 0;
 	if basic_robot.maxdig~=0 then
 		digcount = basic_robot.data[name].digcount;
-		if digcount > basic_robot.maxdig then return false end
+		if digcount > basic_robot.maxdig then 
+			basic_robot.data[name].digcount = digcount+1;
+		return false end
 	end
 	
 	local obj = basic_robot.data[name].obj;
@@ -100,7 +102,7 @@ basic_robot.commands.dig = function(name,dir)
 	
 	basic_robot.give_drops(nodename, inv);
 	minetest.set_node(pos,{name = "air"})
-	basic_robot.data[name].digcount = digcount+1;
+	
 	
 	--DS: sounds
 	local sounds = minetest.registered_nodes[nodename].sounds
@@ -111,7 +113,7 @@ basic_robot.commands.dig = function(name,dir)
 		end
 	end
 	
-	
+	basic_robot.data[name].digcount = digcount+1;
 	return true
 end
 
@@ -176,6 +178,42 @@ basic_robot.commands.take_item = function(name,item, inventory,dir)
 end
 
 
+basic_robot.no_teleport_table = {
+	["itemframes:item"] = true,
+	["signs:text"] = true,
+	["basic_robot:robot"] = true
+}
+
+basic_robot.commands.pickup = function(r,name)
+	
+	if r>8 then return false end
+	
+	local pos = basic_robot.data[name].obj:getpos();
+	local spos = basic_robot.data[name].spawnpos; -- position of spawner block
+	local meta = minetest.get_meta(spos);
+	local inv = minetest.get_meta(spos):get_inventory();
+		
+	for _,obj in pairs(minetest.get_objects_inside_radius({x=pos.x,y=pos.y,z=pos.z}, r)) do
+		local lua_entity = obj:get_luaentity() 
+		if not obj:is_player() and lua_entity and lua_entity.itemstring ~= "" then
+			local detected_obj = lua_entity.name or "" 
+			if not basic_robot.no_teleport_table[detected_obj] then -- object on no teleport list 
+				-- put item in chest
+				local stack = ItemStack(lua_entity.itemstring) 
+				if inv:room_for_item("main", stack) then
+					inv:add_item("main", stack);
+				end
+				obj:remove();
+			end
+		end
+	end
+	
+	return true
+end
+
+				
+				
+				
 
 basic_robot.commands.read_node = function(name,dir)
 	local obj = basic_robot.data[name].obj;
@@ -203,7 +241,7 @@ basic_robot.commands.place = function(name,nodename, dir)
 	local meta = minetest.get_meta(spos);
 	local inv = meta:get_inventory();
 	if not inv then return false end
-	if not inv:contains_item("main", ItemStack(nodename)) and meta:get_int("admin")~=1 then return end
+	if not inv:contains_item("main", ItemStack(nodename)) and meta:get_int("admin")~=1 then return false end
 	inv:remove_item("main", ItemStack(nodename));	
 	
 	--DS
@@ -215,7 +253,7 @@ basic_robot.commands.place = function(name,nodename, dir)
 		end
 	end
 	
-	placename = basic_robot.plant_table[nodename];
+	local placename = basic_robot.plant_table[nodename];
 	if placename then
 		minetest.set_node(pos,{name = placename})
 		tick(pos); -- needed for seeds to grow
