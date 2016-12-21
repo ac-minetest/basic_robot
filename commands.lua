@@ -90,10 +90,10 @@ basic_robot.commands.dig = function(name,dir)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
-	if minetest.is_protected(pos,luaent.owner ) then return false end
+	if minetest.is_protected(pos,luaent.owner) then return false end
 	
 	local nodename = minetest.get_node(pos).name;
-	if nodename == "air" then return false end
+	if nodename == "air" or nodename=="ignore" then return false end
 	
 	local spos = obj:get_luaentity().spawnpos; 
 	local inv = minetest.get_meta(spos):get_inventory();
@@ -177,6 +177,22 @@ basic_robot.commands.take_item = function(name,item, inventory,dir)
 	return contains
 end
 
+basic_robot.commands.check_inventory = function(name,itemname, inventory,dir)
+	local obj = basic_robot.data[name].obj;
+	local tpos;
+	if dir~=0 then
+		tpos = pos_in_dir(obj, dir); -- position of target block in front
+	else
+		tpos = obj:get_luaentity().spawnpos; 
+	end
+	
+	local tinv = minetest.get_meta(tpos):get_inventory();
+	local stack = ItemStack(itemname);
+	if not inventory then inventory = "main"; end
+	
+	return tinv:contains_item(inventory, stack); 
+end
+
 
 basic_robot.no_teleport_table = {
 	["itemframes:item"] = true,
@@ -187,7 +203,7 @@ basic_robot.no_teleport_table = {
 basic_robot.commands.pickup = function(r,name)
 	
 	if r>8 then return false end
-	
+
 	local pos = basic_robot.data[name].obj:getpos();
 	local spos = basic_robot.data[name].spawnpos; -- position of spawner block
 	local meta = minetest.get_meta(spos);
@@ -195,8 +211,8 @@ basic_robot.commands.pickup = function(r,name)
 		
 	for _,obj in pairs(minetest.get_objects_inside_radius({x=pos.x,y=pos.y,z=pos.z}, r)) do
 		local lua_entity = obj:get_luaentity() 
-		if not obj:is_player() and lua_entity and lua_entity.itemstring ~= "" then
-			local detected_obj = lua_entity.name or "" 
+		if not obj:is_player() and lua_entity and lua_entity.itemstring then
+			local detected_obj = lua_entity.itemstring or "" 
 			if not basic_robot.no_teleport_table[detected_obj] then -- object on no teleport list 
 				-- put item in chest
 				local stack = ItemStack(lua_entity.itemstring) 
@@ -245,11 +261,14 @@ basic_robot.commands.place = function(name,nodename, dir)
 	inv:remove_item("main", ItemStack(nodename));	
 	
 	--DS
-	local sounds = minetest.registered_nodes[nodename].sounds
-	if sounds then
-		local sound = sounds.place
-		if sound then
-			minetest.sound_play(sound,{object=obj, max_hear_distance = 10})
+	local registered_node = minetest.registered_nodes[nodename];
+	if registered_node then
+		local sounds = registered_node.sounds
+		if sounds then
+			local sound = sounds.place
+			if sound then
+				minetest.sound_play(sound,{object=obj, max_hear_distance = 10})
+			end
 		end
 	end
 	
@@ -283,6 +302,29 @@ basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
 end
 
+basic_robot.commands.grab = function(name,target)
+
+	local reach = 4;
+
+	local tplayer = minetest.get_player_by_name(target);
+	if not tplayer then return false end
+	local obj = basic_robot.data[name].obj;
+	local pos = obj:getpos();
+	local tpos = tplayer:getpos();
+
+	if math.abs(pos.x-tpos.x)> reach or math.abs(pos.y-tpos.y)> reach or math.abs(pos.z-tpos.z)> reach then
+		return false
+	end
+
+	if tplayer:get_attach() then
+		tplayer:set_detach()
+	else
+		tplayer:set_attach(obj, "", {x=0,y=5,z=0}, {x=0,y=0,z=0})
+	end
+
+	return true
+
+end
 
 basic_robot.commands.read_book = function (itemstack) -- itemstack should contain book
 	local data = minetest.deserialize(itemstack:get_metadata())
@@ -293,14 +335,15 @@ basic_robot.commands.read_book = function (itemstack) -- itemstack should contai
 	end
 end
 
-basic_robot.commands.write_book = function(name,text) -- returns itemstack containing book
+basic_robot.commands.write_book = function(name,title,text) -- returns itemstack containing book
 	
 	local lpp = 14;
 	local new_stack = ItemStack("default:book_written")
 	local data = {} 
 	
-	data.title = "program book"
-	data.text = text
+	if title == "" or not title then title = "program book "..minetest.get_gametime() end
+	data.title = title
+	data.text = text or ""
 	data.text_len = #data.text
 	data.page = 1
 	data.page_max = math.ceil((#data.text:gsub("[^\n]", "") + 1) / lpp)
