@@ -108,6 +108,7 @@ function getSandboxEnv (name)
 		self = {
 			pos = function() return basic_robot.data[name].obj:getpos() end,
 			spawnpos = function() return basic_robot.data[name].spawnpos end,
+			name = function() return name end,
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
 			listen = function (mode)
@@ -178,7 +179,8 @@ function getSandboxEnv (name)
 				obj:setvelocity(velocity);
 				obj:setacceleration({x=0,y=-gravity,z=0});
 				local luaent = obj:get_luaentity();
-				luaent.owner = name;
+				luaent.name = name;
+				luaent.spawnpos = pos;
 		
 			end,
 			
@@ -232,13 +234,22 @@ function getSandboxEnv (name)
 			forward_down = function() return commands.read_node(name,7) end,
 		},
 		
-		read_text = { -- returns node name
+		read_text = { -- returns text
 			left = function(stringname) return commands.read_text(name,1,stringname	) end,
 			right = function(stringname) return commands.read_text(name,2,stringname) end,
 			forward = function(stringname) return commands.read_text(name,3,stringname) end,
 			backward = function(stringname) return commands.read_text(name,4,stringname) end,
 			down = function(stringname) return commands.read_text(name,6,stringname) end,
 			up = function(stringname) return commands.read_text(name,5,stringname) end,
+		},
+		
+		write_text = { -- returns text
+			left = function(text) return commands.write_text(name,1,text) end,
+			right = function(text) return commands.write_text(name,2,text) end,
+			forward = function(text) return commands.write_text(name,3,text) end,
+			backward = function(text) return commands.write_text(name,4,text) end,
+			down = function(text) return commands.write_text(name,5,text) end,
+			up = function(text) return commands.write_text(name,6,text) end,
 		},
 		
 		say = function(text)
@@ -608,8 +619,7 @@ local function init_robot(obj)
 	basic_robot.data[name].quiet_mode = false; -- can chat globally
 	
 	-- check if admin robot
-	local privs = minetest.get_player_privs(self.owner);
-	if privs then basic_robot.data[name].isadmin = privs.privs end
+	if self.isadmin then basic_robot.data[name].isadmin = 1 end
 	
 	--robot appearance,armor...
 	obj:set_properties({infotext = "robot " .. name});
@@ -784,6 +794,7 @@ local spawn_robot = function(pos,node,ttl)
 	luaent.name = name;
 	luaent.code = meta:get_string("code");
     luaent.spawnpos = {x=pos.x,y=pos.y-1,z=pos.z};
+	if meta:get_int("admin") == 1 then luaent.isadmin = 1 end
 				
 			
 	local data = basic_robot.data[name];
@@ -868,6 +879,13 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			
 			if fields.code then 
 				local code = fields.code or "";
+				
+				if meta:get_int("admin") == 1 then
+					local privs = minetest.get_player_privs(name); -- only admin can edit admin robot code
+					if not privs.privs then
+						return
+					end
+				end
 				meta:set_string("code", code)
 			end
 			
@@ -899,6 +917,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"pickup(r) picks up all items around robot in radius r<8\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
+			"write_text.direction(text) writes text to target block as infotext\n"..
 			"  **BOOKS/CODE\nbook.read(i) returns contents of book at i-th position in library \nbook.write(i,title,text) writes book at i-th position at spawner library\n"..
 			"code.run(text) compiles and runs the code in sandbox\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
@@ -915,6 +934,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.send_mail(target,mail) sends mail to target robot\n"..
 			"sender,mail = self.read_mail() reads mail, if any\n" ..
 			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
+			"self.name() returns robot name\n"..
 			"self.spam(0/1) (dis)enable message repeat to all\n"..
 			"self.remove() removes robot\n"..
 			"self.spawnpos() returns position of spawner block\n"..
@@ -1271,6 +1291,12 @@ minetest.register_craftitem("basic_robot:control", {
 		if t1-t0<1 then return end
 		data.remoteuse = t1;
 		
+		if data.isadmin == 1 then
+			local privs = minetest.get_player_privs(owner); -- only admin can run admin robot
+			if not privs.privs then
+				return
+			end
+		end
 		
 		script = itemstack:get_metadata();
 		if script == "" then
@@ -1300,17 +1326,19 @@ minetest.register_craftitem("basic_robot:control", {
 minetest.register_entity(
 	"basic_robot:projectile",
 	{
-		hp_max = 1,
+		hp_max = 100,
 		physical = true,
 		collide_with_objects = true,
 		weight = 5,
 		collisionbox = {-0.15,-0.15,-0.15, 0.15,0.15,0.15},
 		visual ="sprite",	
 		visual_size = {x=0.5, y=0.5},
-		textures = {"heart.png"},
+		textures = {"default_furnace_fire_fg.png"},
 		is_visible = true,
 		oldvel = {x=0,y=0,z=0},
 		name = "", -- name of originating robot
+		spawnpos = {},
+		state = false,
 
 		--on_activate = function(self, staticdata)
 		--		self.object:remove()
@@ -1329,10 +1357,22 @@ minetest.register_entity(
 				end
 				self.object:remove()
 				return
+			elseif vel.x==0 and vel.y==0 and vel.z==0 then self.object:remove()
 			end
 			self.oldvel = vel;
+			if not self.state then self.state = true end
 			
-			end
+			end,
+			
+			get_staticdata = function(self) -- this gets called before object put in world and before it hides
+				if not self.state then return nil end
+				local data = basic_robot.data[self.name];
+				if data then
+					data.fire_pos = self.object:getpos();
+				end
+				self.object:remove();
+				return nil
+			end,
 })
 
 minetest.register_craft({

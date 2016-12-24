@@ -246,6 +246,15 @@ basic_robot.commands.read_text = function(name,dir,stringname)
 	return minetest.get_meta(pos):get_string(stringname) or ""
 end
 
+basic_robot.commands.write_text = function(name,dir,text)
+	local obj = basic_robot.data[name].obj;
+	local pos = pos_in_dir(obj, dir)	
+	local luaent = obj:get_luaentity();
+	if minetest.is_protected(pos,luaent.owner ) then return false end
+	minetest.get_meta(pos):set_string("infotext",text or "")
+	return true
+end
+
 basic_robot.commands.place = function(name,nodename, dir)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
