@@ -95,8 +95,8 @@ function getSandboxEnv (name)
 			right = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,2) end,
 			forward = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,3) end,
 			backward = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,4) end,
-			down = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,5) end,
-			up = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,6) end,
+			down = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,6) end,
+			up = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,5) end,
 			self = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,0) end,
 		},
 		
@@ -194,6 +194,7 @@ function getSandboxEnv (name)
 				local obj = basic_robot.data[name].obj;
 				obj:set_properties({nametag = "[" .. name .. "] " .. text});
 			end,
+			
 		},
 		
 		find_nodes = 
@@ -318,6 +319,8 @@ function getSandboxEnv (name)
 			end
 		},
 		
+		rom = basic_robot.data[name].rom,
+		
 		string = {
 			byte = string.byte,	char = string.char,
 			find = string.find,
@@ -355,9 +358,10 @@ function getSandboxEnv (name)
 			clock = os.clock,
 			difftime = os.difftime,
 			time = os.time,
-			
+			date = os.date,			
 		},
 		
+		colorize = core.colorize,
 		tonumber = tonumber,
 		pairs = pairs,
 		ipairs = ipairs,
@@ -379,7 +383,7 @@ function getSandboxEnv (name)
 	--special sandbox for admin
 	local isadmin=basic_robot.data[name].isadmin
 
-	if not isadmin then
+	if isadmin~=1 then
 		env._G = env;
 	else
 		env._G=_G;
@@ -434,8 +438,7 @@ end
 
 -- COMPILATION
 
-local function CompileCode ( script )
-   
+local function preprocess_code(script)
 	--[[ idea: in each local a = function (args) ... end insert counter like:
 	local a = function (args) counter() ... end 
 	when counter exceeds limit exit with error
@@ -508,6 +511,13 @@ local function CompileCode ( script )
 		
 	end
 	
+	return script
+end
+
+
+local function CompileCode ( script )
+   
+
 	--minetest.chat_send_all(script)
 	--if true then return nil, "" end
 	
@@ -525,11 +535,12 @@ end
 local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCode 3. runSandbox
 	
 	local err;
-	if not basic_robot.data[name].isadmin then
+	if basic_robot.data[name].isadmin~=1 then
 		err = check_code(script);
+		script = preprocess_code(script);
 	end
 	if err then return err end
-
+	
 	local bytecode, err = CompileCode ( script );
 	if err then return err end
 	basic_robot.data[name].bytecode = bytecode;
@@ -798,9 +809,10 @@ local spawn_robot = function(pos,node,ttl)
 				
 			
 	local data = basic_robot.data[name];
-	if not data then
+	if data == nil then
 		basic_robot.data[name] = {};
 		data = basic_robot.data[name];
+		data.rom = {};
 	end
 	
 	data.owner = owner;
@@ -893,7 +905,10 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				local id = math.floor(tonumber(fields.id) or 1);
 				local owner = meta:get_string("owner")
 				if not basic_robot.ids[owner] then setupid(owner) end 
-				if id<1 or id>basic_robot.ids[owner].maxid then return end
+				if id<1 or id>basic_robot.ids[owner].maxid then 
+					local privs = minetest.get_player_privs(name);
+					if not privs.privs then return end
+				end
 				meta:set_int("id",id) -- set active id for spawner
 			end
 	
@@ -940,8 +955,9 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
 			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
-			"self.fire_pos() returns last hit position\n "..
-			"self.label(text) changes robot label";
+			"self.fire_pos() returns last hit position\n"..
+			"self.label(text) changes robot label\n"..
+			"rom is aditional table that can store persistent data, like rom.x=1\n";
 		
 			text = minetest.formspec_escape(text);
 			
@@ -1166,7 +1182,7 @@ end
 minetest.register_node("basic_robot:spawner", {
 	description = "Spawns robot",
 	tiles = {"cpu.png"},
-	groups = {oddly_breakable_by_hand=2,mesecon_effector_on = 1},
+	groups = {cracky=3, mesecon_effector_on = 1},
 	drawtype = "allfaces",
 	paramtype = "light",
 	param1=1,
@@ -1298,7 +1314,7 @@ minetest.register_craftitem("basic_robot:control", {
 			end
 		end
 		
-		script = itemstack:get_metadata();
+		local script = itemstack:get_metadata();
 		if script == "" then
 			--display control form
 			minetest.show_formspec(owner, "robot_manual_control_" .. name, get_manual_control_form(name));

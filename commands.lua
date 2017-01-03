@@ -327,6 +327,7 @@ basic_robot.commands.grab = function(name,target)
 
 	if tplayer:get_attach() then
 		tplayer:set_detach()
+		return false
 	else
 		tplayer:set_attach(obj, "", {x=0,y=5,z=0}, {x=0,y=0,z=0})
 	end
