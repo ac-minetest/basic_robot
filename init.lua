@@ -1300,7 +1300,7 @@ minetest.register_on_player_receive_fields(
 					--minetest.chat_send_all(fields.book or "")
 					local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
 					if itemstack then
-						local data = minetest.deserialize(itemstack:get_metadata())
+						local data = minetest.deserialize(itemstack:get_metadata()) or {};
 						meta:set_string("code",	data.text or "")
 						robot_spawner_update_form(libpos);
 						minetest.chat_send_player(player:get_player_name(),"#robot: program loaded from book")
@@ -1308,11 +1308,7 @@ minetest.register_on_player_receive_fields(
 				end
 			return
 		end
-			
 end
-		
-		
-
 )
 
 -- handle chats
@@ -1379,7 +1375,10 @@ minetest.register_node("basic_robot:spawner", {
 	end,
 	
 	allow_metadata_inventory_move = function(pos, from_list, from_index, to_list, to_index, count, player)
-		return 0;
+		local meta = minetest.get_meta(pos);
+		local privs = minetest.get_player_privs(player:get_player_name());
+		if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+		return count
 	end,
 	
 	can_dig = function(pos, player)
