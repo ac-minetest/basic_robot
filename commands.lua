@@ -89,6 +89,7 @@ basic_robot.commands.dig = function(name,dir)
 	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
+	
 	local luaent = obj:get_luaentity();
 	if minetest.is_protected(pos,luaent.owner) then return false end
 	
@@ -103,13 +104,12 @@ basic_robot.commands.dig = function(name,dir)
 	basic_robot.give_drops(nodename, inv);
 	minetest.set_node(pos,{name = "air"})
 	
-	
 	--DS: sounds
 	local sounds = minetest.registered_nodes[nodename].sounds
 	if sounds then
 		local sound = sounds.dug
 		if sound then
-			minetest.sound_play(sound,{object=obj, max_hear_distance = 10})
+			minetest.sound_play(sound,{pos=pos, max_hear_distance = 10})
 		end
 	end
 	
@@ -227,9 +227,6 @@ basic_robot.commands.pickup = function(r,name)
 	return true
 end
 
-				
-				
-				
 
 basic_robot.commands.read_node = function(name,dir)
 	local obj = basic_robot.data[name].obj;
@@ -276,7 +273,7 @@ basic_robot.commands.place = function(name,nodename, dir)
 		if sounds then
 			local sound = sounds.place
 			if sound then
-				minetest.sound_play(sound,{object=obj, max_hear_distance = 10})
+				minetest.sound_play(sound,{pos=pos, max_hear_distance = 10})
 			end
 		end
 	end
@@ -339,7 +336,7 @@ end
 basic_robot.commands.read_book = function (itemstack) -- itemstack should contain book
 	local data = minetest.deserialize(itemstack:get_metadata())
 	if data then
-		return data.text;
+		return data.title,data.text;
 	else 
 		return nil
 	end
@@ -400,3 +397,134 @@ basic_robot.give_drops = function(nodename, inv) -- gives apropriate drops when 
 end
 
 
+local render_text = function(text,linesize) 
+		local count = math.floor(string.len(text)/linesize)+1;
+		local width = 18; local height = 24;
+		local tex = "";
+		local y = 0; local x=0;
+		for i=1,string.len(text) do
+			local cb = string.byte(text,i); 
+			local c = "";
+			if cb == 10 or cb == 13 then 
+				y=y+1; x=0 
+			else 
+				c = string.format("%03d",cb)..".png" 
+				tex = tex .. ":" .. (x*width) .. "," .. (y*height) .. "=" .. c;
+				if x==linesize-1 then y=y+1 x=0 else x=x+1 end
+			end
+		end
+		local background = "(black_screen.png^[resize:"..(linesize*width).. "x".. (linesize*height) ..")";
+		tex =  "([combine:"..(linesize*width).."x"..(linesize*height)..tex..")";
+		tex = background .. "^" ..  tex;
+		return tex;
+	end
+	text = "";
+
+basic_robot.commands.display_text = function(obj,text,linesize,size)
+	if not linesize then linesize = 20 end
+	if not size then size = 1 end
+	if string.len(text)>linesize*linesize then text = string.sub(text,1,linesize*linesize) end
+	local tex = render_text(text,linesize);
+	
+	if string.len(tex)<60000 then
+		obj:set_properties({textures={"arrow.png","basic_machine_side.png",tex,"basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},visual_size = {x=size,y=size}})
+	else
+		self.label("error: string too long")
+	end
+end
+
+
+basic_robot.commands.activate = function(name,mode, dir)
+	local obj = basic_robot.data[name].obj;
+	local tpos = pos_in_dir(obj, dir); -- position of target block in front
+	
+	local node = minetest.get_node(tpos);
+	local table = minetest.registered_nodes[node.name];
+	if table and table.mesecons and table.mesecons.effector then 
+	else
+		return 
+	end -- error
+	
+	local effector=table.mesecons.effector;
+	
+	if mode > 0 then
+		if not effector.action_on then return end
+		effector.action_on(tpos,node,16)
+	elseif mode<0 then
+		if not effector.action_off then return end
+		effector.action_off(tpos,node,16)
+	end
+end
+
+
+local register_robot_button = function(R,G,B,type)
+minetest.register_node("basic_robot:button"..R..G..B, 
+ { 
+	description = "robot button",
+	tiles = {"robot_button.png^[colorize:#"..R..G..B..":180"},
+	is_ground_content = false,
+	groups = {cracky=3},
+	on_punch = function(pos, node, player)
+		local name = player:get_player_name(); if name==nil then return end
+		local round = math.floor;
+		local r = 20; local ry = 2*r;
+		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
+		local meta = minetest.get_meta(ppos);
+		local name = meta:get_string("name");
+		local data = basic_robot.data[name];
+		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+	end		
+	})
+end
+
+register_robot_button("FF","FF","FF",1);
+register_robot_button("80","80","80",2);
+register_robot_button("FF","80","80",3);
+register_robot_button("80","FF","80",4);
+register_robot_button("80","80","FF",5);
+register_robot_button("FF","FF","80",6);
+
+
+
+-- interactive button for robot: place robot on top of protector to intercept events
+
+basic_robot.commands.keyboard = {
+
+	get = function(name)
+		local data = basic_robot.data[name];
+		if data.keyboard then 
+			local keyboard = data.keyboard;
+			local event = {x=keyboard.x,y=keyboard.y,z=keyboard.z, puncher = keyboard.puncher, type = keyboard.type};
+			data.keyboard = nil;
+			return event
+		else 
+			return nil
+		end
+	end,
+		
+	set = function(spos,pos,type)
+
+		if math.abs(pos.x-spos.x)>10 or math.abs(pos.y-spos.y)>10 or math.abs(pos.z-spos.z)>10 then return false end
+		local nodename;
+		if type == 0 then
+			nodename = "air"
+		elseif type == 1 then
+			nodename = "basic_robot:buttonFFFFFF";
+		elseif type == 2 then
+			nodename = "basic_robot:button808080";
+		elseif type == 3 then
+			nodename = "basic_robot:buttonFF8080";
+		elseif type == 4 then
+			nodename = "basic_robot:button80FF80";
+		elseif type == 5 then
+			nodename = "basic_robot:button8080FF";
+		elseif type == 6 then
+			nodename = "basic_robot:buttonFFFF80";
+		end
+		
+		minetest.swap_node(pos, {name = nodename})
+		return true
+		
+	end,
+
+}

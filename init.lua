@@ -13,7 +13,7 @@ basic_robot.maxdig = 1; -- how many digs allowed per run,  0 = unlimited
 
 
 
-basic_robot.version = "12/21a";
+basic_robot.version = "01/18a";
 
 basic_robot.data = {}; -- stores all robot data
 --[[
@@ -100,6 +100,16 @@ function getSandboxEnv (name)
 			self = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,0) end,
 		},
 		
+		activate = {
+			left = function(mode) return commands.activate(name,mode, 1) end,
+			right = function(mode) return commands.activate(name,mode, 2) end,
+			forward = function(mode) return commands.activate(name,mode, 3) end,
+			backward = function(mode) return commands.activate(name,mode, 4) end,
+			down = function(mode) return commands.activate(name,mode, 6) end,
+			up = function(mode) return commands.activate(name,mode, 5) end,
+			forward_down = function(mode) return commands.activate(name,mode, 7) end,
+		},
+		
 		pickup = function(r) -- pick up items around robot
 			commands.pickup(r, name);
 		end,
@@ -107,7 +117,7 @@ function getSandboxEnv (name)
 		
 		self = {
 			pos = function() return basic_robot.data[name].obj:getpos() end,
-			spawnpos = function() return basic_robot.data[name].spawnpos end,
+			spawnpos = function() local pos = basic_robot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
 			name = function() return name end,
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
@@ -195,6 +205,17 @@ function getSandboxEnv (name)
 				obj:set_properties({nametag = "[" .. name .. "] " .. text});
 			end,
 			
+			display_text = function(text,linesize,size)
+				local obj = basic_robot.data[name].obj;
+				commands.display_text(obj,text,linesize,size)
+			end,
+			
+		},
+		
+		keyboard = {
+			get = function() return commands.keyboard.get(name) end,
+			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name].spawnpos,pos,type) end,
+			read = function(pos) return minetest.get_node(pos).name end,
 		},
 		
 		find_nodes = 
@@ -249,8 +270,8 @@ function getSandboxEnv (name)
 			right = function(text) return commands.write_text(name,2,text) end,
 			forward = function(text) return commands.write_text(name,3,text) end,
 			backward = function(text) return commands.write_text(name,4,text) end,
-			down = function(text) return commands.write_text(name,5,text) end,
-			up = function(text) return commands.write_text(name,6,text) end,
+			down = function(text) return commands.write_text(name,6,text) end,
+			up = function(text) return commands.write_text(name,5,text) end,
 		},
 		
 		say = function(text)
@@ -498,7 +519,6 @@ local function preprocess_code(script)
 			end
 		end
 		
-		
 		i2=string.find (script, "goto ", i1) -- fix goto OK
 		if i2 then
 			if not is_inside_string(i2,script) then
@@ -516,7 +536,6 @@ end
 
 
 local function CompileCode ( script )
-   
 
 	--minetest.chat_send_all(script)
 	--if true then return nil, "" end
@@ -593,8 +612,8 @@ local robot_spawner_update_form = function (pos, mode)
 	if mode ~= 1 then -- when placed
 		
 		form  = 
-		"size[9.5,6]" ..  -- width, height
-		"textarea[1.25,-0.25;8.75,7.6;code;;".. code.."]"..
+		"size[9.5,8]" ..  -- width, height
+		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
 		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]"..
 		"button_exit[-0.25, 0.75;1.25,1;spawn;START]"..
 		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
@@ -605,8 +624,8 @@ local robot_spawner_update_form = function (pos, mode)
 			 
 	else -- when robot clicked
 		form  = 
-		"size[9.5,6]" ..  -- width, height
-		"textarea[1.25,-0.25;8.75,7.6;code;;".. code.."]"..
+		"size[9.5,8]" ..  -- width, height
+		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
 		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]"..
 		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
 			 "button[-0.25, 3.6;1.25,1;inventory;storage]"..
@@ -685,7 +704,7 @@ minetest.register_entity("basic_robot:robot",{
 			local meta =  minetest.get_meta(data.spawnpos);
 			if meta then self.code = meta:get_string("code") end -- remember code
 			if not self.code or self.code == "" then
-				minetest.chat_send_player(self.owner, "#ROBOT INIT:  no code found")
+				minetest.chat_send_player(self.owner, "#ROBOT INIT: no code found")
 				self.object:remove(); 
 			end
 			
@@ -749,7 +768,7 @@ minetest.register_entity("basic_robot:robot",{
 		local text = minetest.formspec_escape(self.code);
 		local form = robot_spawner_update_form(self.spawnpos,1);
 		
-		minetest.show_formspec(clicker:get_player_name(), "robot_worker_" .. self.name, form); -- yyy
+		minetest.show_formspec(clicker:get_player_name(), "robot_worker_" .. self.name, form);
 	 end,
 })
 
@@ -787,6 +806,77 @@ local spawn_robot = function(pos,node,ttl)
 	local owner = meta:get_string("owner")
 	local id = meta:get_int("id");
 	local name = owner..id;
+	
+
+	if id == 0 then -- just compile code and run it, no robot spawn
+		local codechange = false;
+		if meta:get_int("codechange") == 1 then
+			meta:set_int("codechange",0);
+			codechange = true;
+		end
+		-- compile code & run it
+
+		local err;
+		local data = basic_robot.data[name];
+		if codechange or (not data) then 
+			basic_robot.data[name] = {}; data = basic_robot.data[name];
+			meta:set_string("infotext",minetest.get_gametime().. " code changed ")
+			if meta:get_int("admin") == 1 then data.isadmin = 1 end
+			
+			if not basic_robot.data[name].obj then
+				--create virtual robot that reports position and other properties
+				local obj = {};
+				function obj:getpos() return {x=pos.x,y=pos.y,z=pos.z} end
+				function obj:getyaw() return 0 end
+			    function obj:get_luaentity()
+					local luaent = {};
+					luaent.owner = owner
+					luaent.spawnpos = {x=pos.x,y=pos.y-1,z=pos.z};
+					return luaent
+				end
+				function obj:remove() end
+				
+				basic_robot.data[name].obj = obj;
+			end
+		end
+		
+		
+		if not data.bytecode then
+			local script = meta:get_string("code");
+			
+			if data.isadmin~=1 then
+				err = check_code(script);
+				script = preprocess_code(script);
+			end
+			if err then 
+				meta:set_string("infotext","#CODE CHECK ERROR : " .. err);
+				return 
+			end
+			
+			local bytecode, err = loadstring( script )
+			if err then
+				meta:set_string("infotext","#COMPILE ERROR : " ..  err)
+				return
+			end
+			data.bytecode = bytecode;
+		end
+		
+		--sandbox init
+		if not data.sandbox then data.sandbox = getSandboxEnv (name) end
+
+		-- actual code run process			
+		data.ccounter = 0;data.digcount = 1;
+		
+		setfenv(data.bytecode, data.sandbox )
+		
+		local Result, err = pcall( data.bytecode )
+		if err then
+			meta:set_string("infotext","#RUN ERROR : " ..  err)
+			return
+		end
+	return
+	end
+
 	
 	-- if robot already exists do nothing
 	if basic_robot.data[name] and basic_robot.data[name].obj then
@@ -826,7 +916,6 @@ local spawn_robot = function(pos,node,ttl)
 	if err then
 		minetest.chat_send_player(self.owner,"#ROBOT CODE COMPILATION ERROR : " .. err) 
 		self.running = 0; -- stop execution
-	
 		self.object:remove();
 		basic_robot.data[self.name].obj = nil;
 		return
@@ -864,7 +953,8 @@ local despawn_robot = function(pos)
 	-- spawn position on top
 	pos.y=pos.y+1;
 	local owner = meta:get_string("owner")
-	local id = meta:get_int("id");
+	local id = meta:get_int("id"); 
+		if id == 0 then meta:set_int("codechange",1) return end
 	local name = owner..id;
 	
 	-- if robot already exists remove it
@@ -898,18 +988,19 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 						return
 					end
 				end
-				meta:set_string("code", code)
+				meta:set_string("code", code); meta:set_int("codechange",1)
 			end
 			
 			if fields.id then 
 				local id = math.floor(tonumber(fields.id) or 1);
 				local owner = meta:get_string("owner")
 				if not basic_robot.ids[owner] then setupid(owner) end 
-				if id<1 or id>basic_robot.ids[owner].maxid then 
+				if id<0 or id>basic_robot.ids[owner].maxid then 
 					local privs = minetest.get_player_privs(name);
 					if not privs.privs then return end
 				end
 				meta:set_int("id",id) -- set active id for spawner
+				meta:set_string("name", owner..id)
 			end
 	
 			robot_spawner_update_form(pos);
@@ -929,11 +1020,12 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"dig.direction()\nplace.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
 			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
 			"check_inventory.direction(itemname, inventory) looks at node and returns false/true, direction can be self\n"..
+			"activate.direction(mode) activates target block\n"..
 			"pickup(r) picks up all items around robot in radius r<8\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
 			"write_text.direction(text) writes text to target block as infotext\n"..
-			"  **BOOKS/CODE\nbook.read(i) returns contents of book at i-th position in library \nbook.write(i,title,text) writes book at i-th position at spawner library\n"..
+			"  **BOOKS/CODE\ntitle,text=book.read(i) returns title,contents of book at i-th position in library \nbook.write(i,title,text) writes book at i-th position at spawner library\n"..
 			"code.run(text) compiles and runs the code in sandbox\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
 			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
@@ -957,7 +1049,12 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
 			"self.fire_pos() returns last hit position\n"..
 			"self.label(text) changes robot label\n"..
-			"rom is aditional table that can store persistent data, like rom.x=1\n";
+			"self.display_text(text,linesize,size) displays text instead of robot face\n"..
+			"rom is aditional table that can store persistent data, like rom.x=1\n"..
+			"  **KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
+			"keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
+			"keyboard.set(pos,type) set key at pos of type 0=air, 1..6, limited to range 10 around\n"..
+			"keyboard.read(pos) return node name at pos\n";
 		
 			text = minetest.formspec_escape(text);
 			
@@ -966,7 +1063,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			--textlist[X,Y;W,H;name;listelem 1,listelem 2,...,listelem n]
 			local list = "";
 			for word in string.gmatch(text, "(.-)\r?\n+") do list = list .. word .. ", " end
-			local form = "size [8,8] textlist[-0.25,-0.25;8.25,8.5;help;" .. list .. "]"
+			local form = "size [10,8] textlist[-0.25,-0.25;10.25,8.5;help;" .. list .. "]"
 			minetest.show_formspec(sender:get_player_name(), "robot_help", form);
 			
 			return
@@ -1146,9 +1243,14 @@ minetest.register_on_player_receive_fields(
 						local libpos = {x=tonumber(words[1] or spos.x),y=tonumber(words[2] or spos.y),z=tonumber(words[3] or spos.z)};
 						local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
 						if itemstack then
-							local text = basic_robot.commands.read_book(itemstack) or ""; 
-							local form = "size [8,8] textarea[0.,0;8.75,9.75;book;BOOK CONTENTS;" .. minetest.formspec_escape(text) .. "]"
-							minetest.show_formspec(player:get_player_name(), "robot_book", form);
+							local title,text = basic_robot.commands.read_book(itemstack);
+							title = title or ""; text = text or "";
+							local dtitle = minetest.formspec_escape(title);
+							local form = "size [8,8] textarea[0.,0.;8.75,8.5;book; TITLE : " .. minetest.formspec_escape(title) .. ";" ..
+							minetest.formspec_escape(text) .. "] button_exit[-0.25,7.5;1.25,1;OK;SAVE] "..
+							"button_exit[1.,7.5;2.75,1;LOAD;USE AS PROGRAM] field[4,8;4.5,0.5;title;title;"..dtitle.."]";
+							minetest.show_formspec(player:get_player_name(), "robot_book_".. sel.. ":".. minetest.pos_to_string(libpos), form);
+							
 						end
 					end
 				end
@@ -1162,8 +1264,54 @@ minetest.register_on_player_receive_fields(
 			return
 		end
 		
+		local robot_formname = "robot_book_";
+		if string.find(formname,robot_formname) then
+				local p = string.find(formname,":");
+				local sel = tonumber(string.sub(formname, string.len(robot_formname)+1,p-1)) or 1;
+				local libpos = minetest.string_to_pos(string.sub(formname, p+1));
+			
+				if minetest.is_protected(libpos, player:get_player_name()) then return end
+				
+				if fields.OK and fields.book then
+					local meta = minetest.get_meta(libpos);
+					local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
+					if itemstack then
+						local data = minetest.deserialize(itemstack:get_metadata())
+						if not data then data = {} end
+						local text = fields.book or "";
+						data.text = text or ""
+						data.title = fields.title or ""
+						data.text_len = #data.text
+						data.page = 1
+						data.owner = data.owner or ""
+						local lpp = 14
+						data.page_max = math.ceil((#text:gsub("[^\n]", "") + 1) / lpp)
+						local data_str = minetest.serialize(data)
+						local new_stack = ItemStack("default:book_written")
+						new_stack:set_metadata(data_str);
+						inv:set_stack("library",sel, new_stack);					
+					end
+				end
+				
+				if fields.LOAD then
+					local meta = minetest.get_meta(libpos);
+					--minetest.chat_send_all(libpos.x .. " " .. libpos.y .. " " .. libpos.z)
+					--minetest.chat_send_all(fields.book or "")
+					local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
+					if itemstack then
+						local data = minetest.deserialize(itemstack:get_metadata())
+						meta:set_string("code",	data.text or "")
+						robot_spawner_update_form(libpos);
+						minetest.chat_send_player(player:get_player_name(),"#robot: program loaded from book")
+					end
+				end
+			return
+		end
+			
+end
 		
-	end
+		
+
 )
 
 -- handle chats
@@ -1195,6 +1343,7 @@ minetest.register_node("basic_robot:spawner", {
 	
 		meta:set_string("code","");
 		meta:set_int("id",1); -- initial robot id
+		meta:set_string("name", placer:get_player_name().."1")
 		
 		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
 		meta:set_string("libpos",pos.x .. " " .. pos.y .. " " .. pos.z)
@@ -1321,6 +1470,9 @@ minetest.register_craftitem("basic_robot:control", {
 			return
 		end
 		
+		if not data.isadmin then
+			if check_code(script)~=nil then return end
+		end
 		
 		local ScriptFunc, CompileError = loadstring( script )
 		if CompileError then
@@ -1391,6 +1543,8 @@ minetest.register_entity(
 			end,
 })
 
+
+	
 minetest.register_craft({
 	output = "basic_robot:control",
 	recipe = {
