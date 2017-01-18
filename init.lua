@@ -3,7 +3,7 @@
 
 basic_robot = {};
 ----  SETTINGS  ------
-basic_robot.call_limit = 32; -- how many execution calls per script run allowed
+basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
 	["craft_guide:sign_wall"] = true,
@@ -389,7 +389,7 @@ function getSandboxEnv (name)
 		error = error,
 		debug = debug,
 		
-		_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
+		--_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
 		
 		increase_ccounter = 
 		function() 
@@ -465,12 +465,13 @@ local function preprocess_code(script)
 	when counter exceeds limit exit with error
 	--]]
 	
-	
 	script="_ccounter = 0; " .. script;
 	
 	local i1 -- process script to insert call counter in every function
-	local insert_code = " increase_ccounter(); ";
-
+	local _increase_ccounter = " if _ccounter > " .. basic_robot.call_limit .. 
+	" then error(\"Execution count \".. _ccounter .. \" exceeded ".. basic_robot.call_limit .. "\") end _ccounter = _ccounter + 1; "
+	
+	
 	local i1=0; local i2 = 0; 
 	local found = true;
 	
@@ -486,7 +487,7 @@ local function preprocess_code(script)
 				local i21 = i2;
 				i2=string.find(script, "do", i2);
 				if i2 then 
-					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
+					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
 					i1=i21+6; -- after while
 					found = true;
 				end
@@ -499,8 +500,8 @@ local function preprocess_code(script)
 			if not is_inside_string(i2,script) then
 				i2=string.find(script, ")", i2);
 				if i2 then 
-					script = script.sub(script,1, i2) .. insert_code .. script.sub(script, i2+1); 
-					i1=i2+string.len(insert_code);
+					script = script.sub(script,1, i2) .. _increase_ccounter .. script.sub(script, i2+1); 
+					i1=i2+string.len(_increase_ccounter);
 					found = true;
 				end
 			end
@@ -512,8 +513,8 @@ local function preprocess_code(script)
 			if not is_inside_string(i2,script) then
 				i2=string.find(script, "do ", i2);
 				if i2 then 
-					script = script.sub(script,1, i2+1) .. insert_code .. script.sub(script, i2+2); 
-					i1=i2+string.len(insert_code);
+					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
+					i1=i2+string.len(_increase_ccounter);
 					found = true;
 				end
 			end
@@ -522,8 +523,8 @@ local function preprocess_code(script)
 		i2=string.find (script, "goto ", i1) -- fix goto OK
 		if i2 then
 			if not is_inside_string(i2,script) then
-				script = script.sub(script,1, i2-1) .. insert_code .. script.sub(script, i2); 
-				i1=i2+string.len(insert_code)+5; -- insert + skip goto
+				script = script.sub(script,1, i2-1) .. _increase_ccounter .. script.sub(script, i2); 
+				i1=i2+string.len(_increase_ccounter)+5; -- insert + skip goto
 				found = true;
 			end
 		end
