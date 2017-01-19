@@ -174,7 +174,7 @@ basic_robot.commands.take_item = function(name,item, inventory,dir)
 	inv:add_item("main",stack);
 	tinv:remove_item(inventory, stack);
 
-	return contains
+	return true
 end
 
 basic_robot.commands.check_inventory = function(name,itemname, inventory,dir)

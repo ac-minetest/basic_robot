@@ -776,6 +776,7 @@ minetest.register_entity("basic_robot:robot",{
 
 
 local spawn_robot = function(pos,node,ttl)
+	if type(ttl) ~= "number" then ttl = 0 end
 	if ttl<0 then return end
 	
 	local meta = minetest.get_meta(pos);
