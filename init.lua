@@ -8,7 +8,7 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.maxdig = 1; -- how many digs allowed per run,  0 = unlimited
+basic_robot.maxenergy = 1; -- how much energy available per run,  0 = unlimited
 ----------------------
 
 
@@ -91,13 +91,13 @@ function getSandboxEnv (name)
 		
 		},
 		check_inventory = {
-			left = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,1) end,
-			right = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,2) end,
-			forward = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,3) end,
-			backward = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,4) end,
-			down = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,6) end,
-			up = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,5) end,
-			self = function(itemname, inventory) return commands.check_inventory(name,itemname, inventory,0) end,
+			left = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,1) end,
+			right = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,2) end,
+			forward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,3) end,
+			backward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,4) end,
+			down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,6) end,
+			up = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,5) end,
+			self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end,
 		},
 		
 		activate = {
@@ -111,7 +111,7 @@ function getSandboxEnv (name)
 		},
 		
 		pickup = function(r) -- pick up items around robot
-			commands.pickup(r, name);
+			return commands.pickup(r, name);
 		end,
 
 		
@@ -228,10 +228,14 @@ function getSandboxEnv (name)
 			function(r) 
 				if r>8 then return false end
 				local objects =  minetest.get_objects_inside_radius(basic_robot.data[name].obj:getpos(), r);
+				local plist = {};
 				for _,obj in pairs(objects) do
-					if obj:is_player() then return obj:get_player_name() end
+					if obj:is_player() then 
+						plist[#plist+1]=obj:get_player_name();
+					end
 				end
-				return false
+				if not plist[1] then return nil end
+				return plist
 			end, -- in radius around position
 		
 		player = {
@@ -240,6 +244,14 @@ function getSandboxEnv (name)
 				if player then return player:getpos() else return nil end 
 			end,
 			
+			connected = function()
+				local players =  minetest.get_connected_players();
+				local plist = {}
+				for _,player in pairs(players) do
+					plist[#plist+1]=player:get_player_name()
+				end
+				if not plist[1] then return nil else return plist end
+			end
 		},
 		
 		attack = function(target) return basic_robot.commands.attack(name,target) end, -- attack player if nearby
@@ -281,7 +293,6 @@ function getSandboxEnv (name)
 					basic_robot.data[name].quiet_mode=true
 				end
 			else
-				
 				minetest.chat_send_player(basic_robot.data[name].owner,"<robot ".. name .. "> " .. text)
 			end
 		end,
@@ -387,7 +398,6 @@ function getSandboxEnv (name)
 		pairs = pairs,
 		ipairs = ipairs,
 		error = error,
-		debug = debug,
 		
 		--_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
 		
@@ -408,6 +418,7 @@ function getSandboxEnv (name)
 		env._G = env;
 	else
 		env._G=_G;
+		debug = debug;
 	end
 	
 	return env	
@@ -578,7 +589,7 @@ local function runSandbox( name)
 	end	
 	
 	data.ccounter = 0;
-	data.digcount = 1;
+	data.energy = 1;
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -810,22 +821,22 @@ local spawn_robot = function(pos,node,ttl)
 	local name = owner..id;
 	
 
-	if id == 0 then -- just compile code and run it, no robot spawn
+	if id <= 0 then -- just compile code and run it, no robot spawn
 		local codechange = false;
 		if meta:get_int("codechange") == 1 then
 			meta:set_int("codechange",0);
 			codechange = true;
 		end
 		-- compile code & run it
-
 		local err;
 		local data = basic_robot.data[name];
 		if codechange or (not data) then 
 			basic_robot.data[name] = {}; data = basic_robot.data[name];
 			meta:set_string("infotext",minetest.get_gametime().. " code changed ")
+			data.owner = owner;
 			if meta:get_int("admin") == 1 then data.isadmin = 1 end
 			
-			if not basic_robot.data[name].obj then
+			if not data.obj then
 				--create virtual robot that reports position and other properties
 				local obj = {};
 				function obj:getpos() return {x=pos.x,y=pos.y,z=pos.z} end
@@ -838,7 +849,7 @@ local spawn_robot = function(pos,node,ttl)
 				end
 				function obj:remove() end
 				
-				basic_robot.data[name].obj = obj;
+				data.obj = obj;
 			end
 		end
 		
@@ -867,7 +878,7 @@ local spawn_robot = function(pos,node,ttl)
 		if not data.sandbox then data.sandbox = getSandboxEnv (name) end
 
 		-- actual code run process			
-		data.ccounter = 0;data.digcount = 1;
+		data.ccounter = 0;data.energy = 1;
 		
 		setfenv(data.bytecode, data.sandbox )
 		
@@ -956,7 +967,7 @@ local despawn_robot = function(pos)
 	pos.y=pos.y+1;
 	local owner = meta:get_string("owner")
 	local id = meta:get_int("id"); 
-		if id == 0 then meta:set_int("codechange",1) return end
+		if id <= 0 then meta:set_int("codechange",1) return end
 	local name = owner..id;
 	
 	-- if robot already exists remove it
@@ -997,7 +1008,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				local id = math.floor(tonumber(fields.id) or 1);
 				local owner = meta:get_string("owner")
 				if not basic_robot.ids[owner] then setupid(owner) end 
-				if id<0 or id>basic_robot.ids[owner].maxid then 
+				if id<-1000 and id>basic_robot.ids[owner].maxid then 
 					local privs = minetest.get_player_privs(name);
 					if not privs.privs then return end
 				end
@@ -1021,9 +1032,10 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"turn.left(), turn.right(), turn.angle(45)\n"..
 			"dig.direction()\nplace.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
 			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
-			"check_inventory.direction(itemname, inventory) looks at node and returns false/true, direction can be self\n"..
+			"check_inventory.direction(itemname, inventory,index) looks at node and returns false/true, direction can be self,\n"..
+			"  if index>0 it returns itemname\n"..
 			"activate.direction(mode) activates target block\n"..
-			"pickup(r) picks up all items around robot in radius r<8\n"..
+			"pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
 			"write_text.direction(text) writes text to target block as infotext\n"..
@@ -1031,10 +1043,10 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"code.run(text) compiles and runs the code in sandbox\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
 			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
-			"**PLAYERS\n"..
-			"find_player(3) finds player and returns his name in radius 3 around robot, if not returns false\n"..
+			"  **PLAYERS\n"..
+			"find_player(3) finds players in radius 3 around robot and returns list, if none returns nil\n"..
 			"attack(target) attempts to attack target player if nearby \n"..
-			"grab(target) attempt to grab target player if nearby \n"..
+			"grab(target) attempt to grab target player if nearby and returns true if succesful \n"..
 			"player.getpos(name) return position of player, player.connected() returns list of players\n"..
 			"  **ROBOT\n"..
 			"say(\"hello\") will speak\n"..
@@ -1045,7 +1057,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"self.name() returns robot name\n"..
 			"self.spam(0/1) (dis)enable message repeat to all\n"..
-			"self.remove() removes robot\n"..
+			"self.remove() removes robot object\n"..
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
 			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
@@ -1083,6 +1095,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			local id = meta:get_int("id");
 			local name = owner..id;
 		
+			if id<=0 then meta:set_int("codechange",1) end
 			
 			if not basic_robot.data[name] then return end
 			if basic_robot.data[name].obj then
@@ -1219,15 +1232,15 @@ minetest.register_on_player_receive_fields(
 			elseif fields.right then
 				pcall(function () commands.move(name,2) end)
 			elseif fields.dig then
-				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,3) end)
+				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,3) end)
 			elseif fields.up then
 				pcall(function () commands.move(name,5) end)
 			elseif fields.down then
 				pcall(function () commands.move(name,6) end)
 			elseif fields.digdown then
-				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,6) end)
+				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,6) end)
 			elseif fields.digup then
-				pcall(function () basic_robot.data[name].digcount = 1; commands.dig(name,5) end)
+				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,5) end)
 			end
 			return
 		end

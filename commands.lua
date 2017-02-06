@@ -79,12 +79,14 @@ end
 
 basic_robot.commands.dig = function(name,dir)
 	
-	local digcount = 0;
-	if basic_robot.maxdig~=0 then
-		digcount = basic_robot.data[name].digcount;
-		if digcount > basic_robot.maxdig then 
-			basic_robot.data[name].digcount = digcount+1;
-		return false end
+	local energy = 0;
+	if basic_robot.maxenergy~=0 then
+		energy = basic_robot.data[name].energy;
+		if energy > 0 then 
+			basic_robot.data[name].energy = energy-1;
+		else
+			return false 
+		end
 	end
 	
 	local obj = basic_robot.data[name].obj;
@@ -113,7 +115,6 @@ basic_robot.commands.dig = function(name,dir)
 		end
 	end
 	
-	basic_robot.data[name].digcount = digcount+1;
 	return true
 end
 
@@ -177,7 +178,9 @@ basic_robot.commands.take_item = function(name,item, inventory,dir)
 	return true
 end
 
-basic_robot.commands.check_inventory = function(name,itemname, inventory,dir)
+-- check_inventory(item, inventory, position)
+--if position>0 then it returns name of item at that position
+basic_robot.commands.check_inventory = function(name,itemname, inventory, position, dir)
 	local obj = basic_robot.data[name].obj;
 	local tpos;
 	if dir~=0 then
@@ -187,6 +190,16 @@ basic_robot.commands.check_inventory = function(name,itemname, inventory,dir)
 	end
 	
 	local tinv = minetest.get_meta(tpos):get_inventory();
+	
+	if not position then position = -1 end
+	if position>0 then
+		return tinv:get_stack(inventory, position):to_string()
+	end
+	
+	if itemname == "" then
+		return tinv:is_empty(inventory)
+	end
+	
 	local stack = ItemStack(itemname);
 	if not inventory then inventory = "main"; end
 	
@@ -200,6 +213,8 @@ basic_robot.no_teleport_table = {
 	["basic_robot:robot"] = true
 }
 
+-- BUG : doesnt return list!
+
 basic_robot.commands.pickup = function(r,name)
 	
 	if r>8 then return false end
@@ -208,7 +223,8 @@ basic_robot.commands.pickup = function(r,name)
 	local spos = basic_robot.data[name].spawnpos; -- position of spawner block
 	local meta = minetest.get_meta(spos);
 	local inv = minetest.get_meta(spos):get_inventory();
-		
+	local picklist = {};
+	
 	for _,obj in pairs(minetest.get_objects_inside_radius({x=pos.x,y=pos.y,z=pos.z}, r)) do
 		local lua_entity = obj:get_luaentity() 
 		if not obj:is_player() and lua_entity and lua_entity.itemstring then
@@ -216,6 +232,7 @@ basic_robot.commands.pickup = function(r,name)
 			if not basic_robot.no_teleport_table[detected_obj] then -- object on no teleport list 
 				-- put item in chest
 				local stack = ItemStack(lua_entity.itemstring) 
+				picklist[#picklist+1]=detected_obj;
 				if inv:room_for_item("main", stack) then
 					inv:add_item("main", stack);
 				end
@@ -223,8 +240,8 @@ basic_robot.commands.pickup = function(r,name)
 			end
 		end
 	end
-	
-	return true
+	if not picklist[1] then return nil end
+	return picklist
 end
 
 
@@ -393,7 +410,6 @@ basic_robot.give_drops = function(nodename, inv) -- gives apropriate drops when 
 			inv:add_item("main",nodename);
 		end
 	end
-	
 end
 
 
@@ -417,12 +433,12 @@ local render_text = function(text,linesize)
 		tex =  "([combine:"..(linesize*width).."x"..(linesize*height)..tex..")";
 		tex = background .. "^" ..  tex;
 		return tex;
-	end
-	text = "";
+end
+
 
 basic_robot.commands.display_text = function(obj,text,linesize,size)
-	if not linesize then linesize = 20 end
-	if not size then size = 1 end
+	if not linesize or linesize<1 then linesize = 20 end
+	if not size or size<=0 then size = 1 end
 	if string.len(text)>linesize*linesize then text = string.sub(text,1,linesize*linesize) end
 	local tex = render_text(text,linesize);
 	
@@ -433,12 +449,17 @@ basic_robot.commands.display_text = function(obj,text,linesize,size)
 	end
 end
 
-
+local robot_activate_furnace = minetest.registered_nodes["default:furnace"].on_metadata_inventory_put; -- this function will activate furnace
 basic_robot.commands.activate = function(name,mode, dir)
 	local obj = basic_robot.data[name].obj;
 	local tpos = pos_in_dir(obj, dir); -- position of target block in front
 	
 	local node = minetest.get_node(tpos);
+	if node.name == "default:furnace" or node.name == "default:furnace_active" then
+		if mode>0 then robot_activate_furnace(tpos) end
+		return
+	end	
+	
 	local table = minetest.registered_nodes[node.name];
 	if table and table.mesecons and table.mesecons.effector then 
 	else
