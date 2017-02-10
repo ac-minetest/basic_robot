@@ -3,7 +3,7 @@ basic_robot.commands = {};
 -- set up nodes for planting (for example seeds -> plant) : [nodename] = plant_name
 basic_robot.plant_table  = {["farming:seed_barley"]="farming:barley_1",["farming:beans"]="farming:beanpole_1", -- so it works with farming redo mod
 ["farming:blueberries"]="farming:blueberry_1",["farming:carrot"]="farming:carrot_1",["farming:cocoa_beans"]="farming:cocoa_1",
-["farming:coffee_beans"]="farming:coffee_1",["farming:corn"]="farming:corn_1",["farming:blueberries"]="farming:blueberry_1",
+["farming:coffee_beans"]="farming:coffee_1",["farming:corn"]="farming:corn_1",
 ["farming:seed_cotton"]="farming:cotton_1",["farming:cucumber"]="farming:cucumber_1",["farming:grapes"]="farming:grapes_1",
 ["farming:melon_slice"]="farming:melon_1",["farming:potato"]="farming:potato_1",["farming:pumpkin_slice"]="farming:pumpkin_1",
 ["farming:raspberries"]="farming:raspberry_1",["farming:rhubarb"]="farming:rhubarb_1",["farming:tomato"]="farming:tomato_1",
@@ -132,6 +132,20 @@ basic_robot.commands.insert_item = function(name,item, inventory,dir)
 	local tmeta = minetest.get_meta(tpos);
 	
 	local inv = minetest.get_meta(pos):get_inventory();
+	
+	-- fertilize if soil
+	if item == "farming:fertilizer" then
+		local stack = ItemStack(item);
+		if minetest.get_node(tpos).name == "farming:soil_wet" and (meta:get_int("admin")==1 or inv:contains_item("main", stack)) then
+			inv:remove_item("main", stack);
+			local nutrient = tmeta:get_int("nutrient");	nutrient = nutrient + 10; if nutrient>20 then nutrient = 20 end
+			tmeta:set_int("nutrient",nutrient);
+			minetest.set_node({x=tpos.x,y=tpos.y+1,z=tpos.z},{name = "air"})
+			return true
+		end
+	end
+	
+	
 	local tinv = minetest.get_meta(tpos):get_inventory();
 	
 	if not inventory then inventory = "main"; end
@@ -251,13 +265,17 @@ basic_robot.commands.read_node = function(name,dir)
 	return minetest.get_node(pos).name or ""
 end
 
-basic_robot.commands.read_text = function(name,dir,stringname)
+basic_robot.commands.read_text = function(name,mode,dir,stringname)
+	if not mode then mode = 0 end
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
+	
 	if stringname == nil then 
 		stringname = "infotext" 
 	end
-	return minetest.get_meta(pos):get_string(stringname) or ""
+	
+	if mode == 1 then return minetest.get_meta(pos):get_int(stringname) else
+	return minetest.get_meta(pos):get_string(stringname) or "" end
 end
 
 basic_robot.commands.write_text = function(name,dir,text)
@@ -549,3 +567,47 @@ basic_robot.commands.keyboard = {
 	end,
 
 }
+
+basic_robot.commands.craftcache = {};
+basic_robot.commands.craft = function(item, name)
+	if not item then return end
+	
+	local cache = basic_robot.commands.craftcache[name];
+	if not cache then basic_robot.commands.craftcache[name] = {}; cache = basic_robot.commands.craftcache[name] end
+	local itemlist = {};
+	if cache.item == item then-- read cache
+		itemlist = cache.itemlist;
+	else
+		--local table = minetest.registered_items[nodename];
+		local craft = minetest.get_craft_recipe(item);
+		if craft and craft.type == "normal" and craft.items then else return end
+		local items = craft.items;
+		for _,item in pairs(items) do
+			itemlist[item]=(itemlist[item] or 0)+1;
+		end
+		cache.item = item;
+		cache.itemlist = itemlist;		
+	end
+	
+	--minetest.chat_send_all(item)
+	--minetest.chat_send_all(dump(itemlist))
+	
+	-- check if all items from itemlist..
+	-- craft item
+	
+	local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+	local inv = minetest.get_meta(pos):get_inventory();
+	
+	for item,quantity in pairs(itemlist) do
+		local stack = ItemStack(item .. " " .. quantity);
+		if not inv:contains_item("main",stack) then return false end
+	end
+	
+	for item,quantity in pairs(itemlist) do
+		local stack = ItemStack(item .. " " .. quantity);
+		inv:remove_item("main",stack);
+	end
+	
+	inv:add_item("main",ItemStack(item))
+	return true
+end

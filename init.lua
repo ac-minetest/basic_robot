@@ -13,7 +13,7 @@ basic_robot.maxenergy = 1; -- how much energy available per run,  0 = unlimited
 
 
 
-basic_robot.version = "01/18a";
+basic_robot.version = "02/07a";
 
 basic_robot.data = {}; -- stores all robot data
 --[[
@@ -113,7 +113,10 @@ function getSandboxEnv (name)
 		pickup = function(r) -- pick up items around robot
 			return commands.pickup(r, name);
 		end,
-
+		
+		craft = function(item)
+			return commands.craft(item, name)
+		end,
 		
 		self = {
 			pos = function() return basic_robot.data[name].obj:getpos() end,
@@ -221,7 +224,10 @@ function getSandboxEnv (name)
 		find_nodes = 
 			function(nodename,r) 
 				if r>8 then return false end
-				return (minetest.find_node_near(basic_robot.data[name].obj:getpos(), r, nodename)~=nil)
+				local q = minetest.find_node_near(basic_robot.data[name].obj:getpos(), r, nodename);
+				if q==nil then return false end
+				local p = basic_robot.data[name].obj:getpos()
+				return math.sqrt((p.x-q.x)^2+(p.y-q.y)^2+(p.z-q.z)^2)
 			end, -- in radius around position
 		
 		find_player = 
@@ -269,12 +275,12 @@ function getSandboxEnv (name)
 		},
 		
 		read_text = { -- returns text
-			left = function(stringname) return commands.read_text(name,1,stringname	) end,
-			right = function(stringname) return commands.read_text(name,2,stringname) end,
-			forward = function(stringname) return commands.read_text(name,3,stringname) end,
-			backward = function(stringname) return commands.read_text(name,4,stringname) end,
-			down = function(stringname) return commands.read_text(name,6,stringname) end,
-			up = function(stringname) return commands.read_text(name,5,stringname) end,
+			left = function(stringname,mode) return commands.read_text(name,mode,1,stringname	) end,
+			right = function(stringname,mode) return commands.read_text(name,mode,2,stringname) end,
+			forward = function(stringname,mode) return commands.read_text(name,mode,3,stringname) end,
+			backward = function(stringname,mode) return commands.read_text(name,mode,4,stringname) end,
+			down = function(stringname,mode) return commands.read_text(name,mode,6,stringname) end,
+			up = function(stringname,mode) return commands.read_text(name,mode,5,stringname) end,
 		},
 		
 		write_text = { -- returns text
@@ -1036,13 +1042,14 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  if index>0 it returns itemname\n"..
 			"activate.direction(mode) activates target block\n"..
 			"pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
+			"craft(item) crafts item if required materials are present in inventory\n"..
 			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
-			"read_text.direction(stringname) reads text of signs, chests and other blocks, optional stringname for other meta\n"..
-			"write_text.direction(text) writes text to target block as infotext\n"..
+			"read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
+			"write_text.direction(text,mode) writes text to target block as infotext\n"..
 			"  **BOOKS/CODE\ntitle,text=book.read(i) returns title,contents of book at i-th position in library \nbook.write(i,title,text) writes book at i-th position at spawner library\n"..
 			"code.run(text) compiles and runs the code in sandbox\n"..
 			"code.set(text) replaces current bytecode of robot\n"..
-			"find_nodes(\"default:dirt\",3) is true if node can be found at radius 3 around robot, otherwise false\n"..
+			"find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
 			"  **PLAYERS\n"..
 			"find_player(3) finds players in radius 3 around robot and returns list, if none returns nil\n"..
 			"attack(target) attempts to attack target player if nearby \n"..
