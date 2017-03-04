@@ -81,12 +81,9 @@ basic_robot.commands.dig = function(name,dir)
 	
 	local energy = 0;
 	if basic_robot.maxenergy~=0 then
-		energy = basic_robot.data[name].energy;
-		if energy > 0 then 
-			basic_robot.data[name].energy = energy-1;
-		else
-			return false 
-		end
+		local data = basic_robot.data[name];
+		energy = data.energy;
+		if energy > 0 then data.energy = energy-1 else return false end
 	end
 	
 	local obj = basic_robot.data[name].obj;
@@ -326,6 +323,13 @@ end
 
 basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
+	local energy = 0;
+	if basic_robot.maxenergy~=0 then
+		local data = basic_robot.data[name];
+		energy = data.energy;
+		if energy > 0 then data.energy = energy-1 else return false end
+	end
+	
 	local reach = 4;
 	local damage = 5;
 	
@@ -516,12 +520,34 @@ minetest.register_node("basic_robot:button"..R..G..B,
 	})
 end
 
+local register_robot_button_number = function(number,type)
+minetest.register_node("basic_robot:button"..number, 
+ { 
+	description = "robot button",
+	tiles = {"robot_button".. number .. ".png"},
+	is_ground_content = false,
+	groups = {cracky=3},
+	on_punch = function(pos, node, player)
+		local name = player:get_player_name(); if name==nil then return end
+		local round = math.floor;
+		local r = 20; local ry = 2*r;
+		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
+		local meta = minetest.get_meta(ppos);
+		local name = meta:get_string("name");
+		local data = basic_robot.data[name];
+		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+	end		
+	})
+end
+
 register_robot_button("FF","FF","FF",1);
 register_robot_button("80","80","80",2);
 register_robot_button("FF","80","80",3);
 register_robot_button("80","FF","80",4);
 register_robot_button("80","80","FF",5);
 register_robot_button("FF","FF","80",6);
+
+for i = 0,9 do register_robot_button_number(i,i+7) end
 
 
 
@@ -559,6 +585,8 @@ basic_robot.commands.keyboard = {
 			nodename = "basic_robot:button8080FF";
 		elseif type == 6 then
 			nodename = "basic_robot:buttonFFFF80";
+		elseif type>=7 then
+			nodename = "basic_robot:button"..(type-7);
 		end
 		
 		minetest.swap_node(pos, {name = nodename})
@@ -611,3 +639,18 @@ basic_robot.commands.craft = function(item, name)
 	inv:add_item("main",ItemStack(item))
 	return true
 end
+
+--FORMS
+basic_robot.commands.show_form = function(name, playername, form)
+	minetest.show_formspec(playername, "robot_form".. name, form)
+end
+
+
+-- handle robots receiving fields
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+	if not string.sub(formname,1,10) == "robot_form" then return end
+	local name = string.sub(formname,11); -- robot name
+	if not basic_robot.data[name] then return end
+	basic_robot.data[name].read_form = fields;
+	basic_robot.data[name].form_sender = player:get_player_name() or "";
+end)

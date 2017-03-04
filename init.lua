@@ -148,6 +148,18 @@ function getSandboxEnv (name)
 				return sender,mail
 			end,
 			
+			read_form = function()
+				local fields = basic_robot.data[name].read_form;
+				local sender = basic_robot.data[name].form_sender;
+				basic_robot.data[name].read_form = nil; 
+				basic_robot.data[name].form_sender = nil; 
+				return sender,fields
+			end,
+			
+			show_form = function(playername, form)
+				commands.show_form(name, playername, form)
+			end,
+			
 			send_mail = function(target,mail)
 				if not basic_robot.data[target] then return false end
 				basic_robot.data[target].listen_mail = mail; 
