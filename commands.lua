@@ -221,7 +221,8 @@ end
 basic_robot.no_teleport_table = {
 	["itemframes:item"] = true,
 	["signs:text"] = true,
-	["basic_robot:robot"] = true
+	["basic_robot:robot"] = true,
+	["robot"] = true,
 }
 
 -- BUG : doesnt return list!
@@ -247,7 +248,7 @@ basic_robot.commands.pickup = function(r,name)
 				if inv:room_for_item("main", stack) then
 					inv:add_item("main", stack);
 				end
-				obj:remove();
+			obj:remove();
 			end
 		end
 	end
@@ -606,7 +607,7 @@ basic_robot.commands.craft = function(item, name)
 	if cache.item == item then-- read cache
 		itemlist = cache.itemlist;
 	else
-		--local table = minetest.registered_items[nodename];
+
 		local craft = minetest.get_craft_recipe(item);
 		if craft and craft.type == "normal" and craft.items then else return end
 		local items = craft.items;
@@ -614,7 +615,29 @@ basic_robot.commands.craft = function(item, name)
 			itemlist[item]=(itemlist[item] or 0)+1;
 		end
 		cache.item = item;
-		cache.itemlist = itemlist;		
+		cache.itemlist = itemlist;
+
+		-- loop through robot inventory for those "group" items and see if anything in inventory matches group - then replace
+		-- group name with that item
+		
+		local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local inv = minetest.get_meta(pos):get_inventory();
+		
+		for item,v in pairs(itemlist) do
+			local k = string.find(item,"group:");
+			if k then
+				local group = string.sub(item,k+6);
+				-- do we have that in inventory?
+				local size = inv:get_size("main");
+				for i=1,size do
+					local itemname = inv:get_stack("main", i):get_name();
+					local groups = minetest.registered_items[itemname].groups or {};
+					if groups[group] then cache.itemlist[item] = nil; cache.itemlist[itemname] = v break end
+				end
+			end
+		end
+		
+		
 	end
 	
 	--minetest.chat_send_all(item)

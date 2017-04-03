@@ -73,21 +73,23 @@ function getSandboxEnv (name)
 		},
 		
 		insert = { -- insert item from robot inventory into another inventory
-			left = function(item, inventory) commands.insert_item(name,item, inventory,1) end,
-			right = function(item, inventory) commands.insert_item(name,item, inventory,2) end,
-			forward = function(item, inventory) commands.insert_item(name,item, inventory,3) end,
-			backward = function(item, inventory) commands.insert_item(name,item, inventory,4) end,
-			down = function(item, inventory) commands.insert_item(name,item, inventory,6) end,
-			up = function(item, inventory) commands.insert_item(name,item, inventory,5) end,
+			left = function(item, inventory) return commands.insert_item(name,item, inventory,1) end,
+			right = function(item, inventory) return commands.insert_item(name,item, inventory,2) end,
+			forward = function(item, inventory) return commands.insert_item(name,item, inventory,3) end,
+			backward = function(item, inventory) return commands.insert_item(name,item, inventory,4) end,
+			down = function(item, inventory) return commands.insert_item(name,item, inventory,6) end,
+			up = function(item, inventory) return commands.insert_item(name,item, inventory,5) end,
+			forward_down = function() return commands.insert_item(name,item, inventory,7) end,
 		},
 		
 		take = { -- takes item from inventory and puts it in robot inventory
-			left = function(item, inventory) commands.take_item(name,item, inventory,1) end,
-			right = function(item, inventory) commands.take_item(name,item, inventory,2) end,
-			forward = function(item, inventory) commands.take_item(name,item, inventory,3) end,
-			backward = function(item, inventory) commands.take_item(name,item, inventory,4) end,
-			down = function(item, inventory) commands.take_item(name,item, inventory,6) end,
-			up = function(item, inventory) commands.take_item(name,item, inventory,5) end,
+			left = function(item, inventory) return commands.take_item(name,item, inventory,1) end,
+			right = function(item, inventory) return commands.take_item(name,item, inventory,2) end,
+			forward = function(item, inventory) return commands.take_item(name,item, inventory,3) end,
+			backward = function(item, inventory) return commands.take_item(name,item, inventory,4) end,
+			down = function(item, inventory) return commands.take_item(name,item, inventory,6) end,
+			up = function(item, inventory) return commands.take_item(name,item, inventory,5) end,
+			forward_down = function(item, inventory) return commands.take_item(name,item, inventory,7) end,
 		
 		},
 		check_inventory = {
@@ -97,6 +99,7 @@ function getSandboxEnv (name)
 			backward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,4) end,
 			down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,6) end,
 			up = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,5) end,
+			forward_down = function(item, inventory) return commands.check_inventory(name,itemname, inventory,i,7) end,
 			self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end,
 		},
 		
@@ -167,8 +170,15 @@ function getSandboxEnv (name)
 			end,			
 			
 			remove = function()
+				error("abort")
 				basic_robot.data[name].obj:remove();
 				basic_robot.data[name].obj=nil;
+			end,
+			
+			reset = function()
+				local pos = basic_robot.data[name].spawnpos; 
+				local obj = basic_robot.data[name].obj;
+				obj:setpos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
 			end,
 			
 			spam = function (mode) -- allow more than one msg per "say"
@@ -217,7 +227,7 @@ function getSandboxEnv (name)
 			
 			label = function(text)
 				local obj = basic_robot.data[name].obj;
-				obj:set_properties({nametag = "[" .. name .. "] " .. text});
+				obj:set_properties({nametag = text}); -- "[" .. name .. "] " .. 
 			end,
 			
 			display_text = function(text,linesize,size)
@@ -293,6 +303,7 @@ function getSandboxEnv (name)
 			backward = function(stringname,mode) return commands.read_text(name,mode,4,stringname) end,
 			down = function(stringname,mode) return commands.read_text(name,mode,6,stringname) end,
 			up = function(stringname,mode) return commands.read_text(name,mode,5,stringname) end,
+			forward_down = function() return commands.read_text(name,mode,7,stringname) end,
 		},
 		
 		write_text = { -- returns text
@@ -302,6 +313,8 @@ function getSandboxEnv (name)
 			backward = function(text) return commands.write_text(name,4,text) end,
 			down = function(text) return commands.write_text(name,6,text) end,
 			up = function(text) return commands.write_text(name,5,text) end,
+			forward_down = function() return commands.write_text(name,7,text) end,
+			
 		},
 		
 		say = function(text)
@@ -693,7 +706,8 @@ minetest.register_entity("basic_robot:robot",{
 	energy = 1, 
 	owner = "",
 	name = "",
-	hp_max = 10,
+	hp_max = 100,
+	itemstring = "robot",
 	code = "",
 	timer = 0,
 	timestep = 1, -- run every 1 second
@@ -763,7 +777,11 @@ minetest.register_entity("basic_robot:robot",{
 			self.timer = 0;
 			local err = runSandbox(self.name);
 			if err then 
-				minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
+				local i = string.find(err,":");
+				if i then err = string.sub(err,i+1) end
+				if string.sub(err,-5)~="abort" then
+					minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
+				end
 				self.running = 0; -- stop execution
 				
 				if string.find(err,"stack overflow") then -- remove stupid player privs and spawner, ban player ip
@@ -1051,7 +1069,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"dig.direction()\nplace.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
 			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
 			"check_inventory.direction(itemname, inventory,index) looks at node and returns false/true, direction can be self,\n"..
-			"  if index>0 it returns itemname\n"..
+			"  if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
 			"activate.direction(mode) activates target block\n"..
 			"pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
 			"craft(item) crafts item if required materials are present in inventory\n"..
@@ -1076,7 +1094,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"self.name() returns robot name\n"..
 			"self.spam(0/1) (dis)enable message repeat to all\n"..
-			"self.remove() removes robot object\n"..
+			"self.remove() stops program and removes robot object\n"..
+			"self.reset() resets robot position\n"..
 			"self.spawnpos() returns position of spawner block\n"..
 			"self.viewdir() returns vector of view for robot\n"..
 			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
