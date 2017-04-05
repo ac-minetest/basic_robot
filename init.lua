@@ -79,7 +79,7 @@ function getSandboxEnv (name)
 			backward = function(item, inventory) return commands.insert_item(name,item, inventory,4) end,
 			down = function(item, inventory) return commands.insert_item(name,item, inventory,6) end,
 			up = function(item, inventory) return commands.insert_item(name,item, inventory,5) end,
-			forward_down = function() return commands.insert_item(name,item, inventory,7) end,
+			forward_down = function(item, inventory) return commands.insert_item(name,item, inventory,7) end,
 		},
 		
 		take = { -- takes item from inventory and puts it in robot inventory
@@ -99,7 +99,7 @@ function getSandboxEnv (name)
 			backward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,4) end,
 			down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,6) end,
 			up = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,5) end,
-			forward_down = function(item, inventory) return commands.check_inventory(name,itemname, inventory,i,7) end,
+			forward_down = function(item, inventory,i) return commands.check_inventory(name,itemname, inventory,i,7) end,
 			self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end,
 		},
 		
@@ -425,10 +425,8 @@ function getSandboxEnv (name)
 		},
 		
 		colorize = core.colorize,
-		tonumber = tonumber,
-		pairs = pairs,
-		ipairs = ipairs,
-		error = error,
+		tonumber = tonumber, pairs = pairs,
+		ipairs = ipairs, error = error, type=type,
 		
 		--_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
 		
