@@ -9,6 +9,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 	["craft_guide:sign_wall"] = true,
 }
 basic_robot.maxenergy = 1; -- how much energy available per run,  0 = unlimited
+basic_robot.use_coal = true; -- does robot require coal to dig stone?
 ----------------------
 
 
@@ -63,13 +64,13 @@ function getSandboxEnv (name)
 		},
 		
 		place = {
-			left = function(nodename) return commands.place(name,nodename, 1) end,
-			right = function(nodename) return commands.place(name,nodename, 2) end,
-			forward = function(nodename) return commands.place(name,nodename, 3) end,
-			backward = function(nodename) return commands.place(name,nodename, 4) end,
-			down = function(nodename) return commands.place(name,nodename, 6) end,
-			up = function(nodename) return commands.place(name,nodename, 5) end,
-			forward_down = function(nodename) return commands.place(name,nodename, 7) end,
+			left = function(nodename, param2) return commands.place(name,nodename, param2, 1) end,
+			right = function(nodename, param2) return commands.place(name,nodename, param2, 2) end,
+			forward = function(nodename, param2) return commands.place(name,nodename, param2, 3) end,
+			backward = function(nodename, param2) return commands.place(name,nodename, param2, 4) end,
+			down = function(nodename, param2) return commands.place(name,nodename, param2, 6) end,
+			up = function(nodename, param2) return commands.place(name,nodename, param2, 5) end,
+			forward_down = function(nodename, param2) return commands.place(name,nodename, param2, 7) end,
 		},
 		
 		insert = { -- insert item from robot inventory into another inventory
@@ -126,6 +127,11 @@ function getSandboxEnv (name)
 			spawnpos = function() local pos = basic_robot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
 			name = function() return name end,
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
+			
+			skin = function(textures) 
+				local obj = basic_robot.data[name].obj;
+				obj:set_properties({textures=textures});
+			end,
 			
 			listen = function (mode)
 				if mode == 1 then 
@@ -235,6 +241,15 @@ function getSandboxEnv (name)
 				commands.display_text(obj,text,linesize,size)
 			end,
 			
+		},
+
+		machine = {-- adds technic like functionality to robots: power generation, smelting, grinding, compressing
+			energy = function() return basic_robot.data[name].menergy or 0 end,
+			generate_power =  function(input,amount) return commands.machine.generate_power(name,input, amount) end,
+			smelt =  function(input,amount) return commands.machine.smelt(name,input, amount) end,
+			grind =  function(input) return commands.machine.grind(name,input) end,
+			compress =  function(input) return commands.machine.compress(name,input) end,
+			transfer_power = function(amount,target) return commands.machine.transfer_power(name,amount,target) end,
 		},
 		
 		keyboard = {
@@ -1057,54 +1072,67 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		if fields.help then 
 			
 			local text =  "BASIC LUA SYNTAX\n \nif x==1 then A else B end"..
-			"\nfor i = 1, 5 do something end \nwhile i<6 do A; i=i+1; end\n"..
-			"\narrays: myTable1 = {1,2,3},  myTable2 = {[\"entry1\"]=5, [\"entry2\"]=1}\n"..
-			"access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n \n"..
+			"\n  for i = 1, 5 do something end \nwhile i<6 do A; i=i+1; end\n"..
+			"\n  arrays: myTable1 = {1,2,3},  myTable2 = {[\"entry1\"]=5, [\"entry2\"]=1}\n"..
+			"  access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n \n"..
 			"ROBOT COMMANDS\n \n"..
-			"  **MOVEMENT,DIGGING, PLACING, INVENTORY TAKE/INSERT\nmove.direction(), where direction is forward, backward, left,right, up, down)\n"..
-			"forward_down direction only works with dig, place and read_node\n"..
-			"turn.left(), turn.right(), turn.angle(45)\n"..
-			"dig.direction()\nplace.direction(\"default:dirt\")\nread_node.direction() tells you names of nodes\n"..
-			"insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
-			"check_inventory.direction(itemname, inventory,index) looks at node and returns false/true, direction can be self,\n"..
-			"  if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
-			"activate.direction(mode) activates target block\n"..
-			"pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
-			"craft(item) crafts item if required materials are present in inventory\n"..
-			"take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
-			"read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
-			"write_text.direction(text,mode) writes text to target block as infotext\n"..
-			"  **BOOKS/CODE\ntitle,text=book.read(i) returns title,contents of book at i-th position in library \nbook.write(i,title,text) writes book at i-th position at spawner library\n"..
-			"code.run(text) compiles and runs the code in sandbox\n"..
-			"code.set(text) replaces current bytecode of robot\n"..
-			"find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
-			"  **PLAYERS\n"..
-			"find_player(3) finds players in radius 3 around robot and returns list, if none returns nil\n"..
-			"attack(target) attempts to attack target player if nearby \n"..
-			"grab(target) attempt to grab target player if nearby and returns true if succesful \n"..
-			"player.getpos(name) return position of player, player.connected() returns list of players\n"..
-			"  **ROBOT\n"..
-			"say(\"hello\") will speak\n"..
-			"self.listen(0/1) (de)attaches chat listener to robot\n"..
-			"speaker, msg = self.listen_msg() retrieves last chat message if robot listens\n"..
-			"self.send_mail(target,mail) sends mail to target robot\n"..
-			"sender,mail = self.read_mail() reads mail, if any\n" ..
-			"self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
-			"self.name() returns robot name\n"..
-			"self.spam(0/1) (dis)enable message repeat to all\n"..
-			"self.remove() stops program and removes robot object\n"..
-			"self.reset() resets robot position\n"..
-			"self.spawnpos() returns position of spawner block\n"..
-			"self.viewdir() returns vector of view for robot\n"..
-			"self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
-			"self.fire_pos() returns last hit position\n"..
-			"self.label(text) changes robot label\n"..
-			"self.display_text(text,linesize,size) displays text instead of robot face\n"..
-			"rom is aditional table that can store persistent data, like rom.x=1\n"..
-			"  **KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
-			"keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
-			"keyboard.set(pos,type) set key at pos of type 0=air, 1..6, limited to range 10 around\n"..
-			"keyboard.read(pos) return node name at pos\n";
+			"**MOVEMENT,DIGGING, PLACING, INVENTORY TAKE/INSERT\n  move.direction(), where direction is forward, backward, left,right, up, down)\n"..
+			"  forward_down direction only works with dig, place and read_node\n"..
+			"  turn.left(), turn.right(), turn.angle(45)\n"..
+			"  dig.direction()\n"..
+			"  place.direction(\"default:dirt\", optional orientation param)\n"..
+			"  read_node.direction() tells you names of nodes\n"..
+			"  insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
+			"  check_inventory.direction(itemname, inventory,index) looks at node and returns false/true, direction can be self,\n"..
+			"    if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
+			"  activate.direction(mode) activates target block\n"..
+			"  pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
+			"  craft(item) crafts item if required materials are present in inventory\n"..
+			"  take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
+			"  read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
+			"  write_text.direction(text,mode) writes text to target block as infotext\n"..
+			"**BOOKS/CODE\n  title,text=book.read(i) returns title,contents of book at i-th position in library \n  book.write(i,title,text) writes book at i-th position at spawner library\n"..
+			"  code.run(text) compiles and runs the code in sandbox\n"..
+			"  code.set(text) replaces current bytecode of robot\n"..
+			"  find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
+			"**PLAYERS\n"..
+			"  find_player(3) finds players in radius 3 around robot and returns list, if none returns nil\n"..
+			"  attack(target) attempts to attack target player if nearby \n"..
+			"  grab(target) attempt to grab target player if nearby and returns true if succesful \n"..
+			"  player.getpos(name) return position of player, player.connected() returns list of players\n"..
+			"**ROBOT\n"..
+			"  say(\"hello\") will speak\n"..
+			"  self.listen(0/1) (de)attaches chat listener to robot\n"..
+			"  speaker, msg = self.listen_msg() retrieves last chat message if robot listens\n"..
+			"  self.send_mail(target,mail) sends mail to target robot\n"..
+			"  sender,mail = self.read_mail() reads mail, if any\n" ..
+			"  self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
+			"  self.name() returns robot name\n"..
+			"  self.skin(textures) sets robot skin, textures is array of 6 textures\n"..
+			"  self.spam(0/1) (dis)enable message repeat to all\n"..
+			"  self.remove() stops program and removes robot object\n"..
+			"  self.reset() resets robot position\n"..
+			"  self.spawnpos() returns position of spawner block\n"..
+			"  self.viewdir() returns vector of view for robot\n"..
+			"  self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
+			"  self.fire_pos() returns last hit position\n"..
+			"  self.label(text) changes robot label\n"..
+			"  self.display_text(text,linesize,size) displays text instead of robot face\n"..
+			"  rom is aditional table that can store persistent data, like rom.x=1\n"..
+			"**KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
+			"  keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
+			"  keyboard.set(pos,type) set key at pos of type 0=air, 1..6, limited to range 10 around\n"..
+			"  keyboard.read(pos) return node name at pos\n"..
+			"**TECHNIC FUNCTIONALITY: namespace 'machine'\n" ..
+			"  energy() displays available energy\n"..
+			"  generate_power(fuel, amount) attempt to generate power from fuel material, if\n" ..
+			"    amount>0 try generate amount of power using builtin generator - this requires\n" ..
+			"    40 gold/mese/diamonblock upgrades for each 1 amount\n"..
+			"  smelt(input,amount) works as a furnace, if amount>0 try to use power to smelt -\n" ..
+			"    requires 10 upgrades for each 1 amount, energy cost is: 1/40*(1+amount)\n"..
+			"  grind(input) - grinds input material, requires upgrades for harder material\n"..
+			"  compress(input) requires upgrades - energy intensive process\n" ..
+			"  transfer_power(amount,target_robot_name)\n";
 		
 			text = minetest.formspec_escape(text);
 			

@@ -97,6 +97,29 @@ basic_robot.commands.dig = function(name,dir)
 	
 	local spos = obj:get_luaentity().spawnpos; 
 	local inv = minetest.get_meta(spos):get_inventory();
+	
+	--require coal to dig
+	if nodename == "default:stone" and basic_robot.use_coal then
+		local meta = minetest.get_meta(spos);
+		local fuel = meta:get_int("fuel")-1;
+		if fuel<0 then -- attempt to refuel
+			local stack = ItemStack("default:coal_lump 10");
+			if inv:contains_item("main", stack) then 
+				meta:set_int("fuel",50) -- 50 digs with 10 coal
+				inv:remove_item("main", stack)
+			else 
+				error("#OUT OF FUEL: please insert 10 coal lumps to dig")
+				basic_robot.data[name].obj:remove();
+				basic_robot.data[name].obj=nil;
+				return
+			end
+		else
+			meta:set_int("fuel",fuel)
+		end
+	end
+	
+	
+	
 	if not inv then return end
 	--inv:add_item("main",ItemStack( nodename ));
 	
@@ -225,7 +248,6 @@ basic_robot.no_teleport_table = {
 	["robot"] = true,
 }
 
--- BUG : doesnt return list!
 
 basic_robot.commands.pickup = function(r,name)
 	
@@ -285,7 +307,7 @@ basic_robot.commands.write_text = function(name,dir,text)
 	return true
 end
 
-basic_robot.commands.place = function(name,nodename, dir)
+basic_robot.commands.place = function(name,nodename, param2,dir)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
@@ -315,8 +337,12 @@ basic_robot.commands.place = function(name,nodename, dir)
 	if placename then
 		minetest.set_node(pos,{name = placename})
 		tick(pos); -- needed for seeds to grow
-	else
-		minetest.set_node(pos,{name = nodename})
+	else -- normal place
+		if param2 then
+			minetest.set_node(pos,{name = nodename, param2 = param2})
+		else
+			minetest.set_node(pos,{name = nodename})
+		end
 	end
 	
 	return true
@@ -480,24 +506,25 @@ basic_robot.commands.activate = function(name,mode, dir)
 	local node = minetest.get_node(tpos);
 	if node.name == "default:furnace" or node.name == "default:furnace_active" then
 		if mode>0 then robot_activate_furnace(tpos) end
-		return
+		return true
 	end	
 	
 	local table = minetest.registered_nodes[node.name];
 	if table and table.mesecons and table.mesecons.effector then 
 	else
-		return 
+		return false
 	end -- error
 	
 	local effector=table.mesecons.effector;
 	
 	if mode > 0 then
-		if not effector.action_on then return end
+		if not effector.action_on then return false end
 		effector.action_on(tpos,node,16)
 	elseif mode<0 then
-		if not effector.action_off then return end
+		if not effector.action_off then return false end
 		effector.action_off(tpos,node,16)
 	end
+	return true
 end
 
 
@@ -603,19 +630,22 @@ basic_robot.commands.craft = function(item, name)
 	
 	local cache = basic_robot.commands.craftcache[name];
 	if not cache then basic_robot.commands.craftcache[name] = {}; cache = basic_robot.commands.craftcache[name] end
-	local itemlist = {};
+	local itemlist = {}; local output = "";
 	if cache.item == item then-- read cache
 		itemlist = cache.itemlist;
+		output = cache.output;
 	else
 
 		local craft = minetest.get_craft_recipe(item);
 		if craft and craft.type == "normal" and craft.items then else return end
+		output = craft.output;
 		local items = craft.items;
 		for _,item in pairs(items) do
 			itemlist[item]=(itemlist[item] or 0)+1;
 		end
 		cache.item = item;
 		cache.itemlist = itemlist;
+		cache.output = output;
 
 		-- loop through robot inventory for those "group" items and see if anything in inventory matches group - then replace
 		-- group name with that item
@@ -659,7 +689,7 @@ basic_robot.commands.craft = function(item, name)
 		inv:remove_item("main",stack);
 	end
 	
-	inv:add_item("main",ItemStack(item))
+	inv:add_item("main",ItemStack(output))
 	return true
 end
 
@@ -667,7 +697,6 @@ end
 basic_robot.commands.show_form = function(name, playername, form)
 	minetest.show_formspec(playername, "robot_form".. name, form)
 end
-
 
 -- handle robots receiving fields
 minetest.register_on_player_receive_fields(function(player, formname, fields)
@@ -677,3 +706,259 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	basic_robot.data[name].read_form = fields;
 	basic_robot.data[name].form_sender = player:get_player_name() or "";
 end)
+
+
+-- ROBOT TECHNIC
+-- amount parameter in generate_power, smelt,... is determined by upgrade level
+-- it specifies how much energy will be generated :
+
+basic_robot.technic = { -- data cache
+	fuels = {}, --[fuel] = value
+	smelts = {}, -- item = [cooktime, cookeditem, aftercookeditem]
+	
+	grinder_recipes = {  --[in] ={fuel cost, out, quantity of material required for processing}
+		["default:stone"] = {2,"default:sand",1},
+		["default:cobble"] = {1,"default:gravel",1},
+		["default:gravel"] = {0.5,"default:dirt",1},
+		["default:dirt"] = {0.5,"default:clay_lump 4",1},
+		["es:aikerum_crystal"] ={16,"es:aikerum_dust 2",1}, -- added for es mod
+		["es:ruby_crystal"] = {16,"es:ruby_dust 2",1},
+		["es:emerald_crystal"] = {16,"es:emerald_dust 2",1},
+		["es:purpellium_lump"] = {16,"es:purpellium_dust 2",1},
+		["default:obsidian_shard"] = {199,"default:lava_source",1},
+		["gloopblocks:basalt"] = {1, "default:cobble",1}, -- enable coble farms with gloopblocks mod
+		["default:ice"] = {1, "default:snow 4",1},
+		["darkage:silt_lump"]={1,"darkage:chalk_powder",1},
+		["default:diamond"] = {16, "basic_machines:diamond_dust_33 2", 1},
+		["default:ice"] = {1, "default:snow", 1},
+		["moreores:tin_lump"] = {4,"basic_machines:tin_dust_33 2",1},
+		["default:obsidian_shard"] = {199, "default:lava_source",1},
+		["default:mese_crystal"] = {8, "basic_machines:mese_dust_33 2",1},
+		["moreores:mithril_ingot"] = {16, "basic_machines:mithril_dust_33 2",1},
+		["moreores:silver_ingot"] = {5, "basic_machines:silver_dust_33 2",1},
+		["moreores:tin_ingot"] = {4,"basic_machines:tin_dust_33 2",1},
+		["moreores:mithril_lump"] = {16, "basic_machines:mithril_dust_33 2",1},
+		["default:steel_ingot"] = {4, "basic_machines:iron_dust_33 2",1},
+		["moreores:silver_lump"] = {5, "basic_machines:silver_dust_33 2",1},
+		["default:gold_ingot"] = {6, "basic_machines:gold_dust_33 2", 1},
+		["default:copper_ingot"] = {4, "basic_machines:copper_dust_33 2",1},
+		["default:gold_lump"] = {6, "basic_machines:gold_dust_33 2", 1},
+		["default:iron_lump"] = {4, "basic_machines:iron_dust_33 2",1},
+		["default:copper_lump"] = {4, "basic_machines:copper_dust_33 2",1},
+	},
+	
+	compressor_recipes = {  --[in] ={fuel cost, out, quantity of material required for processing}
+		["default:snow"] = {1,"default:ice"},
+		["default:coalblock"] = {16,"default:diamond"},
+	},
+}
+
+local chk_machine_level = function(inv,level) -- does machine have upgrade to be classified with at least "level"
+	local upg = {"default:diamondblock","default:mese","default:goldblock"};
+	for i = 1,#upg do
+		if not inv:contains_item("main",ItemStack(upg[i].. " " .. level)) then return false end
+	end
+	return true
+end
+
+basic_robot.commands.machine = {
+	
+	-- convert fuel into energy
+	generate_power = function(name,input, amount) -- fuel used, if no fuel then amount specifies how much energy builtin generator should produce
+		
+		if amount and amount>0 then -- attempt to generate power from builtin generator
+			local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+			local inv = minetest.get_meta(pos):get_inventory();
+			local level = amount*40; -- to generate 1 unit ( coal lump per second ) we need at least upgrade 40
+			if not chk_machine_level(inv, level) then error("generate_power : tried to generate " .. amount .. " energy requires upgrade level at least " .. level .. " (blocks of mese, diamond, gold )") return end
+			local data = basic_robot.data[name];
+			local energy = (data.menergy or 0)+amount;
+			data.menergy =  energy;
+			return energy;
+		end
+		
+		local energy = 0; -- can only do one step at a run time
+		if basic_robot.maxenergy~=0 then
+			local data = basic_robot.data[name];
+			energy = data.energy;
+			if energy > 0 then data.energy = energy-1 else error("only one generate_power per run step allowed"); return end 
+		end
+		
+		if string.find(input," ") then return nil, "1: can convert only one item at once" end
+		
+		local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local inv = minetest.get_meta(pos):get_inventory();
+		local stack = ItemStack(input);
+		if not inv:contains_item("main",stack) then return nil,"2: no input material" end
+		
+		-- read energy value of input
+		local add_energy = basic_robot.technic.fuels[input];
+		if not add_energy then -- lookup fuel value
+			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
+			if fueladd.time > 0 then 
+				add_energy = fueladd.time;
+			end
+			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy/40 end
+		end
+		
+		inv:remove_item("main", stack);
+		
+		--add energy
+		local data = basic_robot.data[name]; energy = data.menergy or 0;
+		energy = energy+ add_energy;data.menergy = energy
+		return energy;
+	end,
+	
+	-- smelting
+	smelt = function(name,input,amount)  -- input material, amount of energy used for smelt
+		
+		local energy = 0; -- can only do one step at a run time
+		if basic_robot.maxenergy~=0 then
+			local data = basic_robot.data[name];
+			energy = data.energy;
+			if energy > 0 then 
+				data.energy = energy-1
+			else 
+				error("only one smelt per run step allowed"); return 
+			end 
+		end
+		
+		if string.find(input," ") then return nil, "0: only one item per smelt" end
+		
+		local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local meta = minetest.get_meta(pos);
+		local inv = minetest.get_meta(pos):get_inventory();
+		
+		--read robot energy
+		local cost = 1/40;
+		local smelttimeboost = 1;
+		local level = 1;
+		if amount and amount>0 then
+			level = amount*10; -- 10 level required for 1 of amount
+			if not chk_machine_level(inv,level) then 
+				error("3 smelting: need at least level " .. level .. " upgrade for required power " .. amount);
+				return
+			end
+			cost = cost*(1+amount);
+			smelttimeboost = smelttimeboost + amount; -- double speed with amount 1
+		end
+		
+		local data = basic_robot.data[name]
+		energy = data.menergy or 0; -- machine energy
+		if energy<=cost then return nil,"1: not enough energy" end
+		
+		local stack = ItemStack(input);
+		if not inv:contains_item("main",stack) then return nil, "2: no input materials" end
+		
+		local src_time = (data.src_time or 0)+smelttimeboost;
+
+		-- get smelting data
+		local smelts = basic_robot.technic.fuels[input];
+		if not smelts then
+			local cooked, aftercooked;
+			cooked, aftercooked = minetest.get_craft_result({method = "cooking", width = 1, items = {stack}})		
+			if cooked.time>0 then
+				basic_robot.technic.fuels[input] = {cooked.time, cooked.item, aftercooked.items[1]};
+				smelts = basic_robot.technic.fuels[input];
+			end
+		end
+		local cooktime = smelts[1]; local cookeditem = smelts[2]; local aftercookeditem = smelts[3]
+		
+		-- is smelting done?
+		data.menergy = energy-cost;
+		if src_time >= cooktime then 
+			inv:remove_item("main",stack);
+			inv:add_item("main", ItemStack(aftercookeditem));
+			inv:add_item("main", ItemStack(cookeditem));
+			data.src_time = 0
+			return true
+		else
+			data.src_time = src_time
+			return math.floor(src_time/cooktime*100*100)/100
+		end
+	end,
+	
+	-- grind
+	grind = function(name,input) 
+		--[in] ={fuel cost, out, quantity of material required for processing}
+		local recipe = basic_robot.technic.grinder_recipes[input];
+		if not recipe then return nil, "unknown recipe" end
+		local cost = recipe[1]; local output = recipe[2];
+
+		local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local meta = minetest.get_meta(pos);
+		local inv = minetest.get_meta(pos):get_inventory();
+
+		--level requirement
+		local level = math.floor((cost-1)/3)
+
+		if not chk_machine_level(inv,level) then error("0: tried to grind " .. input .. " requires upgrade level at least " .. level) return end
+		
+		local stack = ItemStack(input);
+		if not inv:contains_item("main",stack) then return nil, "1: missing input material" end
+		
+		local data = basic_robot.data[name];
+		local energy = data.menergy or 0;
+		if energy<cost then return nil, "2: low energy " .. energy .. "/" .. cost end
+		data.menergy = energy-cost
+		
+		inv:remove_item("main",ItemStack(input))
+		inv:add_item("main",ItemStack(output));
+		return true
+	end, 
+		
+		
+	-- compress
+	compress = function(name,input) 
+		 --[in] ={fuel cost, out, quantity of material required for processing}
+		local recipe = basic_robot.technic.compressor_recipes[input];
+		if not recipe then return nil, "unknown recipe" end
+		local cost = recipe[1]; local output = recipe[2];
+
+		local pos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local meta = minetest.get_meta(pos);
+		local inv = minetest.get_meta(pos):get_inventory();
+
+		--level requirement
+		local level = math.floor(cost/2)
+		if not chk_machine_level(inv,level) then error("tried to compress " .. input .. " requires upgrade level at least " .. level) return end
+		
+		local stack = ItemStack(input);
+		if not inv:contains_item("main",stack) then return nil, "1: missing input material" end
+		
+		local data = basic_robot.data[name];
+		local energy = data.menergy or 0;
+		if energy<cost then return nil, "2: low energy " .. energy .. "/" .. cost end
+		data.menergy = energy-cost
+		
+		inv:remove_item("main",ItemStack(input))
+		inv:add_item("main",ItemStack(output));
+		return true
+	end,
+	
+	transfer_power = function(name,amount,target)
+		local pos = basic_robot.data[name].spawnpos;
+		local data = basic_robot.data[name];
+		local tdata = basic_robot.data[target];
+		if not tdata then return nil, "target inactive" end
+		
+		local energy = 0; -- can only do one step at a run time
+		if basic_robot.maxenergy~=0 then
+			local data = basic_robot.data[name];
+			energy = data.energy;
+			if energy > 0 then 
+				data.energy = energy-1
+			else 
+				error("only one transfer per run step allowed"); return 
+			end 
+		end
+		
+		energy = data.menergy or 0;
+		if amount>energy then return nil,"energy too low" end
+		
+		if not tdata.menergy then tdata.menergy = 0 end
+		tdata.menergy = tdata.menergy + amount
+		data.energy = energy - amount;
+		
+	end,
+}
