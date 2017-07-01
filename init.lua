@@ -8,13 +8,13 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.maxenergy = 1; -- how much energy available per run,  0 = unlimited
+basic_robot.maxoperations = 1; -- how many operations available per run,  0 = unlimited
 basic_robot.use_coal = true; -- does robot require coal to dig stone?
 ----------------------
 
 
 
-basic_robot.version = "02/07a";
+basic_robot.version = "06/18a";
 
 basic_robot.data = {}; -- stores all robot data
 --[[
@@ -27,6 +27,7 @@ basic_robot.ids = {}; -- stores maxid for all players
 basic_robot.data.listening = {}; -- which robots listen to chat
 dofile(minetest.get_modpath("basic_robot").."/commands.lua")
 
+local check_code, preprocess_code,is_inside_string;
 
 
 
@@ -38,6 +39,8 @@ function getSandboxEnv (name)
 	local env = 
 	{
 		pcall=pcall,
+		robot_version = function() return basic_robot.version end,
+		
 		move = { -- changes position of robot
 			left = function() return commands.move(name,1) end,
 			right = function() return commands.move(name,2) end,
@@ -118,8 +121,8 @@ function getSandboxEnv (name)
 			return commands.pickup(r, name);
 		end,
 		
-		craft = function(item)
-			return commands.craft(item, name)
+		craft = function(item, mode)
+			return commands.craft(item, mode, name)
 		end,
 		
 		self = {
@@ -187,6 +190,11 @@ function getSandboxEnv (name)
 				obj:setpos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
 			end,
 			
+			set_libpos = function(pos)
+				local pos = basic_robot.data[name].spawnpos; local meta = minetest.get_meta(pos);
+				meta:set_string("libpos",pos.x .. " " .. pos.y .. " " .. pos.z)
+			end,
+			
 			spam = function (mode) -- allow more than one msg per "say"
 				if mode == 1 then 
 					basic_robot.data[name].allow_spam = true
@@ -239,6 +247,20 @@ function getSandboxEnv (name)
 			display_text = function(text,linesize,size)
 				local obj = basic_robot.data[name].obj;
 				commands.display_text(obj,text,linesize,size)
+			end,
+			
+			sound = function(sample,volume)
+				local obj = basic_robot.data[name].obj;
+				return minetest.sound_play( sample,
+				{
+					object = obj,
+					gain = volume or 1, 
+					max_hear_distance = 32, -- default, uses an euclidean metric
+				})
+			end,
+			
+			sound_stop = function(handle)
+				minetest.sound_stop(handle)
 			end,
 			
 		},
@@ -318,7 +340,7 @@ function getSandboxEnv (name)
 			backward = function(stringname,mode) return commands.read_text(name,mode,4,stringname) end,
 			down = function(stringname,mode) return commands.read_text(name,mode,6,stringname) end,
 			up = function(stringname,mode) return commands.read_text(name,mode,5,stringname) end,
-			forward_down = function() return commands.read_text(name,mode,7,stringname) end,
+			forward_down = function(stringname,mode) return commands.read_text(name,mode,7,stringname) end,
 		},
 		
 		write_text = { -- returns text
@@ -328,12 +350,12 @@ function getSandboxEnv (name)
 			backward = function(text) return commands.write_text(name,4,text) end,
 			down = function(text) return commands.write_text(name,6,text) end,
 			up = function(text) return commands.write_text(name,5,text) end,
-			forward_down = function() return commands.write_text(name,7,text) end,
+			forward_down = function(text) return commands.write_text(name,7,text) end,
 			
 		},
 		
-		say = function(text)
-			if not basic_robot.data[name].quiet_mode then
+		say = function(text, owneronly)
+			if not basic_robot.data[name].quiet_mode and not owneronly then
 				minetest.chat_send_all("<robot ".. name .. "> " .. text)
 				if not basic_robot.data[name].allow_spam then 
 					basic_robot.data[name].quiet_mode=true
@@ -380,6 +402,15 @@ function getSandboxEnv (name)
 			end,
 			
 			run = function(script)
+				if basic_robot.data[name].isadmin ~= 1 then
+					local err = check_code(script);
+					script = preprocess_code(script);
+					if err then 
+						minetest.chat_send_player(name,"#ROBOT CODE CHECK ERROR : " .. err) 
+						return 
+					end
+				end
+				
 				local ScriptFunc, CompileError = loadstring( script )
 				if CompileError then
 					minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
@@ -470,10 +501,9 @@ end
 
 -- code checker
 
-local function check_code(code)
-  
+check_code = function(code)
   --"while ", "for ", "do ","goto ", 
-  local bad_code = {"repeat ", "until ", "_ccounter", "_G", "while%(", "while{", "pcall","\\\""}
+  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall","\\\""}
 	
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
@@ -484,7 +514,7 @@ local function check_code(code)
 end
 
 
-local function is_inside_string(pos,script)
+is_inside_string = function(pos,script)
 	local i1=string.find (script, "\"", 1);
 	if not i1 then 
 		return false 
@@ -514,7 +544,7 @@ end
 
 -- COMPILATION
 
-local function preprocess_code(script)
+preprocess_code = function(script)
 	--[[ idea: in each local a = function (args) ... end insert counter like:
 	local a = function (args) counter() ... end 
 	when counter exceeds limit exit with error
@@ -535,9 +565,10 @@ local function preprocess_code(script)
 		found = false;
 		i2 = nil;
 
+		-- i1 = where its looking
+		
 		i2=string.find (script, "while ", i1) -- fix while OK
 		if i2 then
-			--minetest.chat_send_all("while0");
 			if not is_inside_string(i2,script) then
 				local i21 = i2;
 				i2=string.find(script, "do", i2);
@@ -566,7 +597,7 @@ local function preprocess_code(script)
 		i2=string.find (script, "for ", i1) -- fix for OK
 		if i2 then
 			if not is_inside_string(i2,script) then
-				i2=string.find(script, "do ", i2);
+				i2=string.find(script, "do", i2);
 				if i2 then 
 					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
 					i1=i2+string.len(_increase_ccounter);
@@ -633,7 +664,7 @@ local function runSandbox( name)
 	end	
 	
 	data.ccounter = 0;
-	data.energy = 1;
+	data.operations = 1;
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -716,7 +747,7 @@ local function init_robot(obj)
 end
 
 minetest.register_entity("basic_robot:robot",{
-	energy = 1, 
+	operations = 1, 
 	owner = "",
 	name = "",
 	hp_max = 100,
@@ -789,7 +820,7 @@ minetest.register_entity("basic_robot:robot",{
 		if self.timer>self.timestep and self.running == 1 then 
 			self.timer = 0;
 			local err = runSandbox(self.name);
-			if err then 
+			if err and type(err) == "string" then 
 				local i = string.find(err,":");
 				if i then err = string.sub(err,i+1) end
 				if string.sub(err,-5)~="abort" then
@@ -927,7 +958,7 @@ local spawn_robot = function(pos,node,ttl)
 		if not data.sandbox then data.sandbox = getSandboxEnv (name) end
 
 		-- actual code run process			
-		data.ccounter = 0;data.energy = 1;
+		data.ccounter = 0;data.operations = 1;
 		
 		setfenv(data.bytecode, data.sandbox )
 		
@@ -1087,7 +1118,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"    if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
 			"  activate.direction(mode) activates target block\n"..
 			"  pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
-			"  craft(item) crafts item if required materials are present in inventory\n"..
+			"  craft(item,mode) crafts item if required materials are present in inventory. mode = 1 returns recipe\n"..
 			"  take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"  read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
 			"  write_text.direction(text,mode) writes text to target block as infotext\n"..
@@ -1118,20 +1149,22 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  self.fire_pos() returns last hit position\n"..
 			"  self.label(text) changes robot label\n"..
 			"  self.display_text(text,linesize,size) displays text instead of robot face\n"..
+			"  self.sound(sample,volume) plays sound named 'sample' at robot location\n"..
 			"  rom is aditional table that can store persistent data, like rom.x=1\n"..
 			"**KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
 			"  keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
 			"  keyboard.set(pos,type) set key at pos of type 0=air, 1..6, limited to range 10 around\n"..
 			"  keyboard.read(pos) return node name at pos\n"..
-			"**TECHNIC FUNCTIONALITY: namespace 'machine'\n" ..
+			"**TECHNIC FUNCTIONALITY: namespace 'machine'. most functions return true or nil, error\n" ..
 			"  energy() displays available energy\n"..
-			"  generate_power(fuel, amount) attempt to generate power from fuel material, if\n" ..
-			"    amount>0 try generate amount of power using builtin generator - this requires\n" ..
+			"  generate_power(fuel, amount) = energy, attempt to generate power from fuel material,\n" ..
+			"    if amount>0 try generate amount of power using builtin generator - this requires\n" ..
 			"    40 gold/mese/diamonblock upgrades for each 1 amount\n"..
-			"  smelt(input,amount) works as a furnace, if amount>0 try to use power to smelt -\n" ..
-			"    requires 10 upgrades for each 1 amount, energy cost is: 1/40*(1+amount)\n"..
+			"  smelt(input,amount) = progress/true. works as a furnace, if amount>0 try to\n" ..
+			"    use power to smelt - requires 10 upgrades for each 1 amount, energy cost is:\n"..
+			"    1/40*(1+amount)\n"..
 			"  grind(input) - grinds input material, requires upgrades for harder material\n"..
-			"  compress(input) requires upgrades - energy intensive process\n" ..
+			"  compress(input) - requires upgrades - energy intensive process\n" ..
 			"  transfer_power(amount,target_robot_name)\n";
 		
 			text = minetest.formspec_escape(text);
@@ -1296,15 +1329,15 @@ minetest.register_on_player_receive_fields(
 			elseif fields.right then
 				pcall(function () commands.move(name,2) end)
 			elseif fields.dig then
-				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,3) end)
+				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,3) end)
 			elseif fields.up then
 				pcall(function () commands.move(name,5) end)
 			elseif fields.down then
 				pcall(function () commands.move(name,6) end)
 			elseif fields.digdown then
-				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,6) end)
+				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,6) end)
 			elseif fields.digup then
-				pcall(function () basic_robot.data[name].energy = 1; commands.dig(name,5) end)
+				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,5) end)
 			end
 			return
 		end

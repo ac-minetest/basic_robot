@@ -44,6 +44,19 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	return pos
 end
 
+local check_operations = function(name, quit)
+	if basic_robot.maxoperations~=0 then
+		local data = basic_robot.data[name];
+		local operations = data.operations;
+		if operations > 0 then data.operations = operations-1 else 
+			if quit then
+				error("robot out of available operations in one step."); return 
+			end
+		end 
+	end
+end
+
+
 basic_robot.commands.move = function(name,dir)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)
@@ -65,9 +78,6 @@ basic_robot.commands.move = function(name,dir)
 		-- obj:set_animation({x=81,y=160})
 	-- end
 	
-	
-	
-	
 	return true
 end
 
@@ -80,11 +90,7 @@ end
 basic_robot.commands.dig = function(name,dir)
 	
 	local energy = 0;
-	if basic_robot.maxenergy~=0 then
-		local data = basic_robot.data[name];
-		energy = data.energy;
-		if energy > 0 then data.energy = energy-1 else return false end
-	end
+	check_operations(name);
 	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
@@ -351,11 +357,7 @@ end
 basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
 	local energy = 0;
-	if basic_robot.maxenergy~=0 then
-		local data = basic_robot.data[name];
-		energy = data.energy;
-		if energy > 0 then data.energy = energy-1 else return false end
-	end
+	check_operations(name);
 	
 	local reach = 4;
 	local damage = 5;
@@ -625,7 +627,8 @@ basic_robot.commands.keyboard = {
 }
 
 basic_robot.commands.craftcache = {};
-basic_robot.commands.craft = function(item, name)
+
+basic_robot.commands.craft = function(item, mode, name)
 	if not item then return end
 	
 	local cache = basic_robot.commands.craftcache[name];
@@ -673,6 +676,8 @@ basic_robot.commands.craft = function(item, name)
 	--minetest.chat_send_all(item)
 	--minetest.chat_send_all(dump(itemlist))
 	
+	if mode == 1 then return itemlist end
+	
 	-- check if all items from itemlist..
 	-- craft item
 	
@@ -714,7 +719,7 @@ end)
 
 basic_robot.technic = { -- data cache
 	fuels = {}, --[fuel] = value
-	smelts = {}, -- item = [cooktime, cookeditem, aftercookeditem]
+	smelts = {}, -- [item] = [cooktime, cookeditem, aftercookeditem]
 	
 	grinder_recipes = {  --[in] ={fuel cost, out, quantity of material required for processing}
 		["default:stone"] = {2,"default:sand",1},
@@ -754,6 +759,7 @@ basic_robot.technic = { -- data cache
 }
 
 local chk_machine_level = function(inv,level) -- does machine have upgrade to be classified with at least "level"
+	if level < 1 then level = 1 end
 	local upg = {"default:diamondblock","default:mese","default:goldblock"};
 	for i = 1,#upg do
 		if not inv:contains_item("main",ItemStack(upg[i].. " " .. level)) then return false end
@@ -761,11 +767,14 @@ local chk_machine_level = function(inv,level) -- does machine have upgrade to be
 	return true
 end
 
+
 basic_robot.commands.machine = {
 	
 	-- convert fuel into energy
 	generate_power = function(name,input, amount) -- fuel used, if no fuel then amount specifies how much energy builtin generator should produce
 		
+		check_operations(name, true)
+						
 		if amount and amount>0 then -- attempt to generate power from builtin generator
 			local pos = basic_robot.data[name].spawnpos; -- position of spawner block
 			local inv = minetest.get_meta(pos):get_inventory();
@@ -778,11 +787,7 @@ basic_robot.commands.machine = {
 		end
 		
 		local energy = 0; -- can only do one step at a run time
-		if basic_robot.maxenergy~=0 then
-			local data = basic_robot.data[name];
-			energy = data.energy;
-			if energy > 0 then data.energy = energy-1 else error("only one generate_power per run step allowed"); return end 
-		end
+		
 		
 		if string.find(input," ") then return nil, "1: can convert only one item at once" end
 		
@@ -797,6 +802,8 @@ basic_robot.commands.machine = {
 			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
 			if fueladd.time > 0 then 
 				add_energy = fueladd.time;
+			else
+				return nil, "3: material can not be used as a fuel"
 			end
 			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy/40 end
 		end
@@ -813,15 +820,7 @@ basic_robot.commands.machine = {
 	smelt = function(name,input,amount)  -- input material, amount of energy used for smelt
 		
 		local energy = 0; -- can only do one step at a run time
-		if basic_robot.maxenergy~=0 then
-			local data = basic_robot.data[name];
-			energy = data.energy;
-			if energy > 0 then 
-				data.energy = energy-1
-			else 
-				error("only one smelt per run step allowed"); return 
-			end 
-		end
+		check_operations(name,true)
 		
 		if string.find(input," ") then return nil, "0: only one item per smelt" end
 		
@@ -845,7 +844,7 @@ basic_robot.commands.machine = {
 		
 		local data = basic_robot.data[name]
 		energy = data.menergy or 0; -- machine energy
-		if energy<=cost then return nil,"1: not enough energy" end
+		if energy<cost then return nil,"1: not enough energy" end
 		
 		local stack = ItemStack(input);
 		if not inv:contains_item("main",stack) then return nil, "2: no input materials" end
@@ -853,13 +852,15 @@ basic_robot.commands.machine = {
 		local src_time = (data.src_time or 0)+smelttimeboost;
 
 		-- get smelting data
-		local smelts = basic_robot.technic.fuels[input];
+		local smelts = basic_robot.technic.smelts[input];
 		if not smelts then
 			local cooked, aftercooked;
 			cooked, aftercooked = minetest.get_craft_result({method = "cooking", width = 1, items = {stack}})		
 			if cooked.time>0 then
-				basic_robot.technic.fuels[input] = {cooked.time, cooked.item, aftercooked.items[1]};
-				smelts = basic_robot.technic.fuels[input];
+				basic_robot.technic.smelts[input] = {cooked.time, cooked.item, aftercooked.items[1]};
+				smelts = basic_robot.technic.smelts[input];
+			else 
+				return nil, "3: material can not be smelted"
 			end
 		end
 		local cooktime = smelts[1]; local cookeditem = smelts[2]; local aftercookeditem = smelts[3]
@@ -890,7 +891,7 @@ basic_robot.commands.machine = {
 		local inv = minetest.get_meta(pos):get_inventory();
 
 		--level requirement
-		local level = math.floor((cost-1)/3)
+		local level = math.floor((cost-1)/3);
 
 		if not chk_machine_level(inv,level) then error("0: tried to grind " .. input .. " requires upgrade level at least " .. level) return end
 		
@@ -943,22 +944,15 @@ basic_robot.commands.machine = {
 		if not tdata then return nil, "target inactive" end
 		
 		local energy = 0; -- can only do one step at a run time
-		if basic_robot.maxenergy~=0 then
-			local data = basic_robot.data[name];
-			energy = data.energy;
-			if energy > 0 then 
-				data.energy = energy-1
-			else 
-				error("only one transfer per run step allowed"); return 
-			end 
-		end
+		check_operations(name, true);
 		
 		energy = data.menergy or 0;
 		if amount>energy then return nil,"energy too low" end
 		
 		if not tdata.menergy then tdata.menergy = 0 end
 		tdata.menergy = tdata.menergy + amount
-		data.energy = energy - amount;
+		data.menergy = energy - amount;
+		return true
 		
 	end,
 }
