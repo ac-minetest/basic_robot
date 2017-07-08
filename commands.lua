@@ -597,9 +597,12 @@ basic_robot.commands.keyboard = {
 		end
 	end,
 		
-	set = function(spos,pos,type)
-
+	set = function(data,pos,type)
+		local spos = data.spawnpos;
 		if math.abs(pos.x-spos.x)>10 or math.abs(pos.y-spos.y)>10 or math.abs(pos.z-spos.z)>10 then return false end
+		local owner = data.obj:get_luaentity().owner
+		if minetest.is_protected(pos,owner) then return false end
+
 		local nodename;
 		if type == 0 then
 			nodename = "air"
