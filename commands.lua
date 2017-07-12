@@ -804,11 +804,11 @@ basic_robot.commands.machine = {
 		if not add_energy then -- lookup fuel value
 			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
 			if fueladd.time > 0 then 
-				add_energy = fueladd.time;
+				add_energy = fueladd.time / 40;
 			else
 				return nil, "3: material can not be used as a fuel"
 			end
-			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy/40 end
+			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy end
 		end
 		
 		inv:remove_item("main", stack);
