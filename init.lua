@@ -276,7 +276,7 @@ function getSandboxEnv (name)
 		
 		keyboard = {
 			get = function() return commands.keyboard.get(name) end,
-			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name].spawnpos,pos,type) end,
+			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name],pos,type) end,
 			read = function(pos) return minetest.get_node(pos).name end,
 		},
 		

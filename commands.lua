@@ -597,9 +597,12 @@ basic_robot.commands.keyboard = {
 		end
 	end,
 		
-	set = function(spos,pos,type)
-
+	set = function(data,pos,type)
+		local spos = data.spawnpos;
 		if math.abs(pos.x-spos.x)>10 or math.abs(pos.y-spos.y)>10 or math.abs(pos.z-spos.z)>10 then return false end
+		local owner = data.obj:get_luaentity().owner
+		if minetest.is_protected(pos,owner) then return false end
+
 		local nodename;
 		if type == 0 then
 			nodename = "air"
@@ -801,11 +804,11 @@ basic_robot.commands.machine = {
 		if not add_energy then -- lookup fuel value
 			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
 			if fueladd.time > 0 then 
-				add_energy = fueladd.time;
+				add_energy = fueladd.time / 40;
 			else
 				return nil, "3: material can not be used as a fuel"
 			end
-			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy/40 end
+			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy end
 		end
 		
 		inv:remove_item("main", stack);
