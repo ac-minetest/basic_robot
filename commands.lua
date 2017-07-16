@@ -47,11 +47,14 @@ end
 local check_operations = function(name, quit)
 	if basic_robot.maxoperations~=0 then
 		local data = basic_robot.data[name];
-		local operations = data.operations;
-		if operations > 0 then data.operations = operations-1 else 
+		local operations = data.operations-1;
+		if operations >= 0 then 
+			data.operations = operations 
+		else 
 			if quit then
-				error("robot out of available operations in one step."); return 
+				error("robot out of available operations in one step."); return false
 			end
+			return false
 		end 
 	end
 end
@@ -83,14 +86,25 @@ end
 
 basic_robot.commands.turn = function (name, angle)
 	local obj = basic_robot.data[name].obj;
-	local yaw = obj:getyaw()+angle;
+	local yaw;
+	-- more precise turns by 1 degree resolution
+	local mult = math.pi/180;
+	local yaw = obj:getyaw();
+	yaw = math.floor((yaw+angle)/mult+0.5)*mult;
 	obj:setyaw(yaw);
 end
+
+
+basic_robot.digcosts = { -- 1 energy = 1 coal
+	["default:stone"] = 1/25,
+
+}
+
 
 basic_robot.commands.dig = function(name,dir)
 	
 	local energy = 0;
-	check_operations(name);
+	check_operations(name,true)
 	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
@@ -104,26 +118,18 @@ basic_robot.commands.dig = function(name,dir)
 	local spos = obj:get_luaentity().spawnpos; 
 	local inv = minetest.get_meta(spos):get_inventory();
 	
-	--require coal to dig
-	if nodename == "default:stone" and basic_robot.use_coal then
-		local meta = minetest.get_meta(spos);
-		local fuel = meta:get_int("fuel")-1;
-		if fuel<0 then -- attempt to refuel
-			local stack = ItemStack("default:coal_lump 10");
-			if inv:contains_item("main", stack) then 
-				meta:set_int("fuel",50) -- 50 digs with 10 coal
-				inv:remove_item("main", stack)
-			else 
-				error("#OUT OF FUEL: please insert 10 coal lumps to dig")
-				basic_robot.data[name].obj:remove();
-				basic_robot.data[name].obj=nil;
-				return
+	--require energy to dig
+	if basic_robot.dig_require_energy then
+		local digcost = basic_robot.digcosts[nodename];
+		if digcost then
+			local data = basic_robot.data[name];
+			local energy = (data.menergy or 0) - digcost;
+			if energy<0 then 
+				return false, "need " .. digcost .. " energy "
 			end
-		else
-			meta:set_int("fuel",fuel)
+			data.menergy = energy;
 		end
 	end
-	
 	
 	
 	if not inv then return end
@@ -357,7 +363,7 @@ end
 basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
 	local energy = 0;
-	check_operations(name);
+	check_operations(name,true);
 	
 	local reach = 4;
 	local damage = 5;
@@ -402,7 +408,8 @@ basic_robot.commands.grab = function(name,target)
 end
 
 basic_robot.commands.read_book = function (itemstack) -- itemstack should contain book
-	local data = minetest.deserialize(itemstack:get_metadata())
+	local data = itemstack:get_meta():to_table().fields -- 0.4.16
+	--local data = minetest.deserialize(itemstack:get_metadata()) -- pre 0.4.16
 	if data then
 		return data.title,data.text;
 	else 
@@ -423,9 +430,10 @@ basic_robot.commands.write_book = function(name,title,text) -- returns itemstack
 	data.page = 1
 	data.page_max = math.ceil((#data.text:gsub("[^\n]", "") + 1) / lpp)
 	data.owner = name
-	local data_str = minetest.serialize(data)
+	--local data_str = minetest.serialize(data) -- pre 0.4.16
+	--new_stack:set_metadata(data_str);
+	new_stack:get_meta():from_table({fields = data}) -- 0.4.16
 	
-	new_stack:set_metadata(data_str);
 	return new_stack;	
 	
 end
@@ -519,6 +527,7 @@ basic_robot.commands.activate = function(name,mode, dir)
 	
 	local effector=table.mesecons.effector;
 	
+	if not mode then mode = 1 end
 	if mode > 0 then
 		if not effector.action_on then return false end
 		effector.action_on(tpos,node,16)
@@ -597,9 +606,11 @@ basic_robot.commands.keyboard = {
 		end
 	end,
 		
-	set = function(spos,pos,type)
+	set = function(data,pos,type)
+		
+		local owner = data.owner;
+		if minetest.is_protected(pos,owner) then return false end -- with fast protect checks this shouldnt be problem!
 
-		if math.abs(pos.x-spos.x)>10 or math.abs(pos.y-spos.y)>10 or math.abs(pos.z-spos.z)>10 then return false end
 		local nodename;
 		if type == 0 then
 			nodename = "air"
@@ -796,16 +807,16 @@ basic_robot.commands.machine = {
 		local stack = ItemStack(input);
 		if not inv:contains_item("main",stack) then return nil,"2: no input material" end
 		
-		-- read energy value of input
+		-- read energy value of input ( coal lump = 1)
 		local add_energy = basic_robot.technic.fuels[input];
 		if not add_energy then -- lookup fuel value
 			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
 			if fueladd.time > 0 then 
-				add_energy = fueladd.time;
+				add_energy = fueladd.time/40; -- fix by kurik
 			else
 				return nil, "3: material can not be used as a fuel"
 			end
-			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy/40 end
+			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy end
 		end
 		
 		inv:remove_item("main", stack);

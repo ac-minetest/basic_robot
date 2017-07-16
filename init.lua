@@ -8,8 +8,8 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.maxoperations = 1; -- how many operations available per run,  0 = unlimited
-basic_robot.use_coal = true; -- does robot require coal to dig stone?
+basic_robot.maxoperations = 1; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
+basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 ----------------------
 
 
@@ -276,7 +276,7 @@ function getSandboxEnv (name)
 		
 		keyboard = {
 			get = function() return commands.keyboard.get(name) end,
-			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name].spawnpos,pos,type) end,
+			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name],pos,type) end,
 			read = function(pos) return minetest.get_node(pos).name end,
 		},
 		
@@ -1246,7 +1246,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				local text = "";
 				for i=1,16 do
 					local itemstack = inv:get_stack("library", i);
-					local data = minetest.deserialize(itemstack:get_metadata())
+					local data = itemstack:get_meta():to_table().fields -- 0.4.16
+					--local data = minetest.deserialize(itemstack:get_metadata()) -- pre 0.4.16
 					if data then
 						text = string.sub(data.title or "",1,32);
 					else 
@@ -1376,7 +1377,7 @@ minetest.register_on_player_receive_fields(
 			return
 		end
 		
-		local robot_formname = "robot_book_";
+		local robot_formname = "robot_book_"; -- book editing gui
 		if string.find(formname,robot_formname) then
 				local p = string.find(formname,":");
 				local sel = tonumber(string.sub(formname, string.len(robot_formname)+1,p-1)) or 1;
@@ -1388,7 +1389,7 @@ minetest.register_on_player_receive_fields(
 					local meta = minetest.get_meta(libpos);
 					local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
 					if itemstack then
-						local data = minetest.deserialize(itemstack:get_metadata())
+						local data = itemstack:get_meta():to_table().fields -- 0.4.16, old minetest.deserialize(itemstack:get_metadata()) 
 						if not data then data = {} end
 						local text = fields.book or "";
 						data.text = text or ""
@@ -1398,9 +1399,12 @@ minetest.register_on_player_receive_fields(
 						data.owner = data.owner or ""
 						local lpp = 14
 						data.page_max = math.ceil((#text:gsub("[^\n]", "") + 1) / lpp)
-						local data_str = minetest.serialize(data)
+						
+						--local data_str = minetest.serialize(data)
 						local new_stack = ItemStack("default:book_written")
-						new_stack:set_metadata(data_str);
+						
+						new_stack:get_meta():from_table({fields = data}) -- 0.4.16
+						--new_stack:set_metadata(data_str);
 						inv:set_stack("library",sel, new_stack);					
 					end
 				end
@@ -1411,7 +1415,7 @@ minetest.register_on_player_receive_fields(
 					--minetest.chat_send_all(fields.book or "")
 					local inv = minetest.get_meta(libpos):get_inventory();local itemstack = inv:get_stack("library", sel);
 					if itemstack then
-						local data = minetest.deserialize(itemstack:get_metadata()) or {};
+						local data = itemstack:get_meta():to_table().fields -- 0.4.16, old minetest.deserialize(itemstack:get_metadata()) or {};
 						meta:set_string("code",	data.text or "")
 						robot_spawner_update_form(libpos);
 						minetest.chat_send_player(player:get_player_name(),"#robot: program loaded from book")
@@ -1431,6 +1435,7 @@ function(name, message)
 		data.listen_msg = message;
 		data.listen_speaker = name;
 	end
+	return false
 end
 )
 
