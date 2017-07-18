@@ -1020,18 +1020,20 @@ basic_robot.commands.machine = {
 		local n = 16; -- range 0-255 (for just chat can use 32 - 132)
 		local m = 65;
 		local ret = "";input = input or "";
-		local block_offset = 0;
 		local rndseed = get_hash(password, 10^30);
 		_G.math.randomseed(rndseed);
 		
+		local block_offset = 1+math.random(n);
+		local offset=1+math.random(n);
+		
 		for i=1, string.len(input) do
-			local offset = math.random(n)^2+(i%n)^3; -- yay, nonlinearity is fun
-			offset = (offset^2)%n
+			offset = math.random(n+math.random(2+(i+offset+block_offset)^2)); -- yay, nested nonlinearity is fun and makes cryptanalysis 'trivial' hehe
 			if i%8 == 1 then -- every 8 characters new offset using strong hash function incorporation recent offset in nonlinear way
-				block_offset = get_hash(_G.minetest.get_password_hash("",i*(offset+1)..password .. (block_offset^2)),n);
-				if math.random(100)>50 then block_offset = block_offset*math.random(n)^2 end -- extra fun, why not
+				block_offset = get_hash(_G.minetest.get_password_hash("",i*(offset+1)..password .. (block_offset^2)),n); -- composite fun with more serious hash function
+				math.randomseed(rndseed+ block_offset) -- time for change of tune, can you keep up ? :)
+				if math.random(100)>50 then block_offset = block_offset*math.random(n*(1+block_offset)) end -- extra fun, why not
 			end
-			offset = offset + block_offset;
+			offset = (offset + block_offset)%n;
 			local c = string.byte(input,i)-m;
 			c = m+((c+offset*sgn) % n);
 			ret = ret .. string.char(c)
