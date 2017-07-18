@@ -274,6 +274,13 @@ function getSandboxEnv (name)
 			transfer_power = function(amount,target) return commands.machine.transfer_power(name,amount,target) end,
 		},
 		
+		crypto = {-- basic cryptography - encryption, scramble, mod hash
+			encrypt = commands.crypto.encrypt, 
+			decrypt = commands.crypto.decrypt, 
+			scramble = commands.crypto.scramble, 
+			basic_hash = commands.crypto.basic_hash,
+			};
+		
 		keyboard = {
 			get = function() return commands.keyboard.get(name) end,
 			set = function(pos,type) return commands.keyboard.set(basic_robot.data[name],pos,type) end,
@@ -1165,8 +1172,13 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"    1/40*(1+amount)\n"..
 			"  grind(input) - grinds input material, requires upgrades for harder material\n"..
 			"  compress(input) - requires upgrades - energy intensive process\n" ..
-			"  transfer_power(amount,target_robot_name)\n";
-		
+			"  transfer_power(amount,target_robot_name)\n"..
+			"**CRYPTOGRAPHY: namespace 'crypto'\n"..
+			"  encrypt(input,password) returns encrypted text, password is any string \n"..
+			"  decrypt(input,password) attempts to decrypt encrypted text\n"..
+			"  scramble(input,randomseed,sgn)  (de)permutes text randomly according to sgn = -1,1\n"..
+			"  basic_hash(input,n) returns simple mod hash from string input within range 0...n-1\n";
+			
 			text = minetest.formspec_escape(text);
 			
 			--local form = "size [8,7] textarea[0,0;8.5,8.5;help;HELP;".. text.."]"

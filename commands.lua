@@ -609,6 +609,9 @@ basic_robot.commands.keyboard = {
 	set = function(data,pos,type)
 		
 		local owner = data.owner;
+		local spos = data.spawnpos; 
+		local dist = math.max(math.abs(spos.x-pos.x),math.abs(spos.y-pos.y),math.abs(spos.z-pos.z));
+		if dist>10 then return false end
 		if minetest.is_protected(pos,owner) then return false end -- with fast protect checks this shouldnt be problem!
 
 		local nodename;
@@ -967,3 +970,115 @@ basic_robot.commands.machine = {
 		
 	end,
 }
+
+-- CRPYTOGRAPHY
+
+-- rnd 2017
+-- nonlinear block stream cypher encryption with scrambling
+
+	local scramble = function(input,password,sgn) -- permutes text randomly, nice after touch to stream cypher to prevent block analysis
+		_G.math.randomseed(password);
+		local n = #input;
+		local permute = {}
+		for i = 1, n do permute[i] = i end --input:sub(i, i)
+		for i = n,2,-1 do
+			local j = math.random(i-1);
+			local tmp = permute[j];
+			permute[j] = permute[i]; permute[i] = tmp;
+		end
+		local out = {};
+		if sgn>0 then -- unscramble
+			for i = 1,n	do out[permute[i]] = string.sub(input,i,i) end
+		else -- scramble
+			for i = 1,n	do out[i] = string.sub(input,permute[i],permute[i]) end
+		end
+		return table.concat(out,"")
+	end
+	
+	local scramble_test = function()
+		local text = "testing scrambling 1 2 3";
+		local enc = scramble(text,10,1); -- scramble
+		local dec = scramble(enc,10,-1); -- descramble
+		say("SCRAMBLED--> ".. enc .. " DESCRAMBLED--> ".. dec)
+	end
+	--scramble_test()
+	
+	local get_hash = function(s,p) -- basic modular hash, first convert string into 4*8=32 bit int
+		if not s then return end
+		local h = 0; local n = string.len(s);local m = 4; -- put 4 characters together
+		local r = 0;local i = 0;
+		while i<n do
+			i=i+1;r = 256*r+ string.byte(s,i);
+			if i%m == 0 then h=h+(r%p) r=0 end
+		end
+		if i%m~=0 then h=h+(r%p) end
+		return h%p
+	end
+	
+	local encrypt_ = function(input,password,sgn) -- nonlinear stream cypher with extra block offsets
+		
+		local n = 16; -- range 0-255 (for just chat can use 32 - 132)
+		local m = 65;
+		local ret = "";input = input or "";
+		local block_offset = 0;
+		local rndseed = get_hash(password, 10^30);
+		_G.math.randomseed(rndseed);
+		
+		for i=1, string.len(input) do
+			local offset = math.random(n)^2+(i%n)^3; -- yay, nonlinearity is fun
+			offset = (offset^2)%n
+			if i%8 == 1 then -- every 8 characters new offset using strong hash function incorporation recent offset in nonlinear way
+				block_offset = get_hash(_G.minetest.get_password_hash("",i*(offset+1)..password .. (block_offset^2)),n);
+				if math.random(100)>50 then block_offset = block_offset*math.random(n)^2 end -- extra fun, why not
+			end
+			offset = offset + block_offset;
+			local c = string.byte(input,i)-m;
+			c = m+((c+offset*sgn) % n);
+			ret = ret .. string.char(c)
+		end
+		return ret
+	end
+	
+	local ascii2hex = function(input) -- compress 256 char set to 16 charset range
+		local ret = ""
+		for i = 1, string.len(input) do
+			local c = string.byte(input,i); -- c = c2*16+c1
+			local c1 = c % 16;
+			local c2 = (c-c1)/16;
+			ret = ret .. (string.char(c1+65)..string.char(c2+65))
+		end
+		return ret;
+	end
+	
+	local hex2ascii = function(input)
+		local ret = ""
+		if string.len(input)%2 == 1 then input = input .. "A" end -- padding
+		for i = 1, string.len(input),2 do
+			local c1 = string.byte(input,i)-65; -- c = c2*16+c1
+			local c2 = string.byte(input,i+1)-65;
+			ret = ret .. string.char(c2*16+c1)
+		end
+		return ret;
+	end
+	
+	-- scheme: encrypt: (stream cypher) encrypt+scramble,  decrypt: unscramble+decrypt
+	local encrypt = function(input, password)
+		local ret = encrypt_(ascii2hex(input),password,1);
+		local scrambleseed = get_hash(_G.minetest.get_password_hash("",password),10^30); -- strong hash from password, 10^30 possible permutes
+		return scramble(ret, scrambleseed, 1);
+	end
+	
+	local decrypt = function(input, password) 
+		local scrambleseed = get_hash(_G.minetest.get_password_hash("",password),10^30);
+		input = scramble(input, scrambleseed, -1); -- descramble
+		return hex2ascii(encrypt_(input,password,-1)) 
+	end
+
+	-- just test
+	local encrypt_test = function()
+		local text = "testing encryption 1 2 3"; local password = "hello encryptions";
+		local enc = encrypt(text, password);local dec = decrypt(enc, password);
+		say("INPUT: " .. text .. " ENC: " .. enc .. " DEC: " .. dec)
+	end
+
+basic_robot.commands.crypto =  {encrypt = encrypt, decrypt = decrypt, scramble = scramble, basic_hash = get_hash}
