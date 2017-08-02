@@ -4,17 +4,20 @@
 basic_robot = {};
 ----  SETTINGS  ------
 basic_robot.call_limit = 48; -- how many execution calls per script run allowed
+basic_robot.entry_count = 2
+basic_robot.advanced_count = 16
+
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.maxoperations = 1; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
+basic_robot.maxoperations = 2; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
 basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 ----------------------
 
 
 
-basic_robot.version = "06/18a";
+basic_robot.version = "2017/07/18a";
 
 basic_robot.data = {}; -- stores all robot data
 --[[
@@ -103,7 +106,7 @@ function getSandboxEnv (name)
 			backward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,4) end,
 			down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,6) end,
 			up = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,5) end,
-			forward_down = function(item, inventory,i) return commands.check_inventory(name,itemname, inventory,i,7) end,
+			forward_down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,7) end,
 			self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end,
 		},
 		
@@ -671,7 +674,7 @@ local function runSandbox( name)
 	end	
 	
 	data.ccounter = 0;
-	data.operations = 1;
+	data.operations = basic_robot.maxoperations;
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -687,8 +690,8 @@ end
 
 local function setupid(owner)
 	local privs = minetest.get_player_privs(owner); if not privs then return end
-	local maxid = 2;
-	if privs.robot then maxid = 16 end -- max id's per user
+	local maxid = basic_robot.entry_count;
+	if privs.robot then maxid = basic_robot.advanced_count end -- max id's per user
 	basic_robot.ids[owner] = {id = 1, maxid =  maxid}; --active id for remove control
 end
 
@@ -708,7 +711,8 @@ local robot_spawner_update_form = function (pos, mode)
 		form  = 
 		"size[9.5,8]" ..  -- width, height
 		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
-		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]"..
+		"button[-0.25,7.5;1.25,1;EDIT;EDIT]".. 
+		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]".. 
 		"button_exit[-0.25, 0.75;1.25,1;spawn;START]"..
 		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
 			 "field[0.25,3.;1.,1;id;id;"..id.."]"..
@@ -733,6 +737,41 @@ local robot_spawner_update_form = function (pos, mode)
 
 end
 
+basic_robot.editor = {};
+editor_get_lines = function(text,name)
+	local data = basic_robot.editor[name]; 
+	if not data then 
+		basic_robot.editor[name] = {}; 
+		basic_robot.editor[name].lines = {};
+		basic_robot.editor[name].selection = 1;
+		data = basic_robot.editor[name]; 
+	else
+		data.lines = {};
+	end
+	
+	local lines = data.lines; 
+	for line in string.gmatch(text,"[^\r\n]+") do lines[#lines+1] = line end
+end
+
+
+code_edit_form = function(pos,name)
+	local lines = basic_robot.editor[name].lines;
+	local input = minetest.formspec_escape(basic_robot.editor[name].input or "");
+	local selection = basic_robot.editor[name].selection or 1;
+	
+	local list = "";
+	for _,line in pairs(lines) do list = list .. minetest.formspec_escape(line) .. "," end
+	local form = "size[12,9.25]" .. "textlist[0,0;12,8;listname;" .. list .. ";"..selection..";false]" .. 
+	"button[10,8;2,1;INSERT;INSERT LINE]" ..
+	"button[10,8.75;2,1;DELETE;DELETE LINE]" ..
+	"button_exit[2,8.75;2,1;SAVE;SAVE CODE]" ..
+	"button[0,8.75;2,1;UPDATE;UPDATE LINE]"..
+	"textarea[0.25,8;10,1;input;;".. input .. "]"
+	return form
+end
+
+
+
 local function init_robot(obj)
 	
 	local self = obj:get_luaentity();
@@ -754,7 +793,7 @@ local function init_robot(obj)
 end
 
 minetest.register_entity("basic_robot:robot",{
-	operations = 1, 
+	operations = basic_robot.maxoperations, 
 	owner = "",
 	name = "",
 	hp_max = 100,
@@ -807,7 +846,6 @@ minetest.register_entity("basic_robot:robot",{
 		end
 		
 		-- lost robots 
-		--minetest.chat_send_all("D R " .. self.owner)
 		
 		--if not self.spawnpos then self.object:remove() return end
 		
@@ -965,7 +1003,7 @@ local spawn_robot = function(pos,node,ttl)
 		if not data.sandbox then data.sandbox = getSandboxEnv (name) end
 
 		-- actual code run process			
-		data.ccounter = 0;data.operations = 1;
+		data.ccounter = 0;data.operations = basic_robot.maxoperations;
 		
 		setfenv(data.bytecode, data.sandbox )
 		
@@ -1095,7 +1133,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				local id = math.floor(tonumber(fields.id) or 1);
 				local owner = meta:get_string("owner")
 				if not basic_robot.ids[owner] then setupid(owner) end 
-				if id<-1000 and id>basic_robot.ids[owner].maxid then 
+				if id<-1000 or id>basic_robot.ids[owner].maxid then 
 					local privs = minetest.get_player_privs(name);
 					if not privs.privs then return end
 				end
@@ -1104,6 +1142,26 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			end
 	
 			robot_spawner_update_form(pos);
+			return
+		end
+		
+		if fields.EDIT then
+			local meta = minetest.get_meta(pos);if not meta then return end
+			if meta:get_int("admin") == 1 then
+				local privs = minetest.get_player_privs(name); -- only admin can edit admin robot code
+				if not privs.privs then
+					return
+				end
+			end
+			
+			local code = meta:get_string("code");
+			editor_get_lines(code,name);
+			local form = code_edit_form(pos,name);
+			minetest.after(0, -- why it ignores this form sometimes? old form interfering?
+				function()
+					minetest.show_formspec(name, "robot_editor_:"..minetest.pos_to_string(pos), form);
+				end
+			)
 			return
 		end
 		
@@ -1342,15 +1400,15 @@ minetest.register_on_player_receive_fields(
 			elseif fields.right then
 				pcall(function () commands.move(name,2) end)
 			elseif fields.dig then
-				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,3) end)
+				pcall(function () basic_robot.data[name].operations = basic_robot.maxoperations; commands.dig(name,3) end)
 			elseif fields.up then
 				pcall(function () commands.move(name,5) end)
 			elseif fields.down then
 				pcall(function () commands.move(name,6) end)
 			elseif fields.digdown then
-				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,6) end)
+				pcall(function () basic_robot.data[name].operations = basic_robot.maxoperations; commands.dig(name,6) end)
 			elseif fields.digup then
-				pcall(function () basic_robot.data[name].operations = 1; commands.dig(name,5) end)
+				pcall(function () basic_robot.data[name].operations = basic_robot.maxoperations; commands.dig(name,5) end)
 			end
 			return
 		end
@@ -1388,6 +1446,54 @@ minetest.register_on_player_receive_fields(
 				
 			return
 		end
+		
+		local robot_formname = "robot_editor_"; -- editor  gui TODO
+		if string.find(formname,robot_formname) then
+			local name = player:get_player_name();
+			local p = string.find(formname,":");
+			local pos = minetest.string_to_pos(string.sub(formname, p+1));
+			
+			if fields.listname then
+				local list = fields.listname;
+				if string.sub(list,1,3) == "CHG" then
+					local selection = tonumber(string.sub(list,5)) or 1
+					basic_robot.editor[name].selection = selection;
+					local lines = basic_robot.editor[name].lines;
+					basic_robot.editor[name].input = lines[selection] or "";
+					minetest.show_formspec(name, "robot_editor_:"..minetest.pos_to_string(pos), code_edit_form(pos,name));
+				end
+			elseif fields.UPDATE then
+				local lines = basic_robot.editor[name].lines or {};
+				local selection = basic_robot.editor[name].selection or 1;
+				fields.input = fields.input or "";
+				fields.input = string.gsub(fields.input, '\\([%[%]\\,;])', '%1') -- dumb minetest POSTS escaped stuff...
+				lines[selection] = fields.input
+				basic_robot.editor[name].input = lines[selection];
+				minetest.show_formspec(name, "robot_editor_:"..minetest.pos_to_string(pos), code_edit_form(pos,name));
+			elseif fields.DELETE then
+				local selection = basic_robot.editor[name].selection or 1;
+				table.remove(basic_robot.editor[name].lines,selection);
+				minetest.show_formspec(name, "robot_editor_:"..minetest.pos_to_string(pos), code_edit_form(pos,name));
+			elseif fields.INSERT then
+				local selection = basic_robot.editor[name].selection or 1;
+				table.insert(basic_robot.editor[name].lines,selection,"")
+				minetest.show_formspec(name, "robot_editor_:"..minetest.pos_to_string(pos), code_edit_form(pos,name));
+			elseif fields.SAVE then
+				local selection = basic_robot.editor[name].selection or 1;
+				local lines = basic_robot.editor[name].lines or {};
+				if fields.input and fields.input~="" then 
+					fields.input = string.gsub(fields.input, '\\([%[%]\\,;])', '%1') -- dumb minetest POSTS escaped stuff...
+					lines[selection]= fields.input 
+				end
+				local meta = minetest.get_meta(pos);
+				local code = table.concat(lines,"\n");
+				meta:set_string("code",code);
+				basic_robot.editor[name].lines = {};
+				robot_spawner_update_form(pos,0);
+			end
+			return
+		end
+		
 		
 		local robot_formname = "robot_book_"; -- book editing gui
 		if string.find(formname,robot_formname) then

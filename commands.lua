@@ -44,10 +44,10 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	return pos
 end
 
-local check_operations = function(name, quit)
+local check_operations = function(name, amount, quit)
 	if basic_robot.maxoperations~=0 then
 		local data = basic_robot.data[name];
-		local operations = data.operations-1;
+		local operations = data.operations-amount;
 		if operations >= 0 then 
 			data.operations = operations 
 		else 
@@ -104,7 +104,7 @@ basic_robot.digcosts = { -- 1 energy = 1 coal
 basic_robot.commands.dig = function(name,dir)
 	
 	local energy = 0;
-	check_operations(name,true)
+	check_operations(name,2,true)
 	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
@@ -363,7 +363,7 @@ end
 basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
 	local energy = 0;
-	check_operations(name,true);
+	check_operations(name,2,true);
 	
 	local reach = 4;
 	local damage = 5;
@@ -787,7 +787,7 @@ basic_robot.commands.machine = {
 	-- convert fuel into energy
 	generate_power = function(name,input, amount) -- fuel used, if no fuel then amount specifies how much energy builtin generator should produce
 		
-		check_operations(name, true)
+		check_operations(name,1.5, true)
 						
 		if amount and amount>0 then -- attempt to generate power from builtin generator
 			local pos = basic_robot.data[name].spawnpos; -- position of spawner block
@@ -834,7 +834,7 @@ basic_robot.commands.machine = {
 	smelt = function(name,input,amount)  -- input material, amount of energy used for smelt
 		
 		local energy = 0; -- can only do one step at a run time
-		check_operations(name,true)
+		check_operations(name,2,true)
 		
 		if string.find(input," ") then return nil, "0: only one item per smelt" end
 		
@@ -958,7 +958,7 @@ basic_robot.commands.machine = {
 		if not tdata then return nil, "target inactive" end
 		
 		local energy = 0; -- can only do one step at a run time
-		check_operations(name, true);
+		check_operations(name,0.5, true);
 		
 		energy = data.menergy or 0;
 		if amount>energy then return nil,"energy too low" end
@@ -1028,7 +1028,7 @@ basic_robot.commands.machine = {
 		
 		for i=1, string.len(input) do
 			offset = math.random(n+math.random(2+(i+offset+block_offset)^2)); -- yay, nested nonlinearity is fun and makes cryptanalysis 'trivial' hehe
-			if i%8 == 1 then -- every 8 characters new offset using strong hash function incorporation recent offset in nonlinear way
+			if i%8 == 1 then -- every 8 characters new offset using strong hash function incorporating recent offsets in nonlinear way
 				block_offset = get_hash(_G.minetest.get_password_hash("",i*(offset+1)..password .. (block_offset^2)),n); -- composite fun with more serious hash function
 				math.randomseed(rndseed+ block_offset) -- time for change of tune, can you keep up ? :)
 				if math.random(100)>50 then block_offset = block_offset*math.random(n*(1+block_offset)) end -- extra fun, why not
