@@ -497,9 +497,11 @@ end
 
 basic_robot.commands.display_text = function(obj,text,linesize,size)
 	if not linesize or linesize<1 then linesize = 20 end
-	if not size or size<=0 then size = 1 end
+	if size and size<=0 then size = 1 end
+	
 	if string.len(text)>linesize*linesize then text = string.sub(text,1,linesize*linesize) end
 	local tex = render_text(text,linesize);
+	if not size then return tex end
 	
 	if string.len(tex)<60000 then
 		obj:set_properties({textures={"arrow.png","basic_machine_side.png",tex,"basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},visual_size = {x=size,y=size}})

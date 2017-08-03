@@ -134,9 +134,15 @@ function getSandboxEnv (name)
 			name = function() return name end,
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
-			skin = function(textures) 
+			set_properties = function(properties)
+				if not properties then return end
 				local obj = basic_robot.data[name].obj;
-				obj:set_properties({textures=textures});
+				obj:set_properties(properties);
+			end,
+			
+			set_animation =  function(anim_start,anim_end,anim_speed,anim_stand_start)
+				local obj = basic_robot.data[name].obj;
+				obj:set_animation({x=anim_start,y=anim_end}, anim_speed, anim_stand_start)
 			end,
 			
 			listen = function (mode)
@@ -249,7 +255,7 @@ function getSandboxEnv (name)
 			
 			display_text = function(text,linesize,size)
 				local obj = basic_robot.data[name].obj;
-				commands.display_text(obj,text,linesize,size)
+				return commands.display_text(obj,text,linesize,size)
 			end,
 			
 			sound = function(sample,volume)
@@ -1107,6 +1113,114 @@ local despawn_robot = function(pos)
 	
 end
 
+-- GUI
+
+-- robogui GUI START ==================================================
+robogui = {}; -- a simple table of entries: [guiName] =  {getForm = ... , show = ... , response = ... , guidata = ...}
+robogui.register = function(def)
+	robogui[def.guiName] = {getForm = def.getForm, show = def.show, response = def.response, guidata = def.guidata or {}}
+end
+minetest.register_on_player_receive_fields(
+	function(player, formname, fields)
+		local gui = robogui[formname];
+		if gui then gui.response(player,formname,fields) end
+	end
+)
+-- robogui GUI END ====================================================
+
+
+
+--- DEMO of simple form registration, all in one place, clean and tidy
+-- adapted for use with basic_robot
+
+
+-- if not basic_gui then
+	-- basic_gui = _G.basic_gui; minetest = _G.minetest;
+	-- basic_gui.register({
+	-- guiName = "mainWindow", -- formname
+	
+	-- getForm = function(form_id, update) -- actual form design
+		-- local gui = basic_gui["mainWindow"];
+		-- local formdata = gui.guidata[form_id]
+		
+		-- if not formdata then -- init
+			-- gui.guidata[form_id] = {}; formdata = gui.guidata[form_id]
+			-- formdata.sel_tab = 1;
+			-- formdata.text = "default";
+			-- formdata.form = "";
+		-- end
+		-- if not update then return formdata.form end
+		
+		-- local sel_tab = formdata.sel_tab;
+		-- local text = formdata.text;
+		
+		-- formdata.form = "size[8,9]"..
+				-- "label[0,0;basic_gui_DEMO, form_id " .. form_id .. ", tab " .. sel_tab .. "]"..
+				-- "button[0,1;2,1;gui_button;CLICK ME]"..
+				-- "textarea[0.25,2;2,1;gui_textarea;text;" .. text .. "]"..
+				-- "tabheader[0,0;tabs;tab1,table demo,tab3;".. sel_tab .. ";true;true]"..
+				-- "list[current_player;main;0,5;8,4;]";
+		
+		-- if sel_tab == 2 then
+			-- formdata.form = "size[12,6.5;true]" ..
+			-- "tablecolumns[color;tree;text,width=32;text]" ..
+			-- "tableoptions[background=#00000000;border=false]" ..
+			-- "field[0.3,0.1;10.2,1;search_string;;" .. minetest.formspec_escape(text) .. "]" ..
+			-- "field_close_on_enter[search_string;false]" ..
+			-- "button[10.2,-0.2;2,1;search;" .. "Search" .. "]" ..
+			-- "table[0,0.8;12,4.5;list_settings;"..
+			-- "#FFFF00,1,TEST A,,"..
+			-- "#FFFF00,2,TEST A,,"..
+			-- ",3,test a,value A,"..
+			-- "#FFFF00,1,TEST B,,"..
+			-- ",2,test b,value B,"
+		-- end
+		
+		-- formdata.info = "This information comes with the form post"; -- extra data set
+	-- end,
+	
+	-- show = function(player_name,update) -- this is used to show form to user
+		-- local formname = "mainWindow";
+		-- local form_id = player_name; -- each player has his own window!
+		-- local gui = basic_gui[formname];
+		-- local formdata = gui.guidata[form_id]; -- all form data for this id gets stored here
+		-- if update then gui.getForm(form_id,true); formdata = gui.guidata[form_id]; end
+		-- minetest.show_formspec(player_name, "mainWindow", formdata.form)
+	-- end,
+	
+	-- response = function(player,formname, fields) -- this handles response
+		
+		-- local player_name = player:get_player_name();
+		-- local form_id = player_name;
+		-- local gui = basic_gui[formname];
+		-- local formdata = gui.guidata[form_id]; --gui.guidata[form_id]; 
+		-- if not formdata then say("err") return end --error!
+		
+		-- if fields.gui_textarea then 
+			-- formdata.text = fields.gui_textarea or "" 
+		-- end
+		
+		
+		-- if fields.tabs then 
+			-- formdata.sel_tab  = tonumber(fields.tabs) or 1;
+			
+			-- gui.show(player_name,true) -- update and show form
+		-- else
+			
+			-- local form = "size[5,5]" ..
+			-- "label[0,0;you interacted with demo form, fields : " .. 
+			-- _G.minetest.formspec_escape(_G.dump(fields)) .. "]"..
+			-- "label[0,4;" .. formdata.info .. "]"
+			-- _G.minetest.show_formspec(player_name,"basic_response", form);
+		-- end
+	-- end,
+	
+
+-- })
+-- end
+
+
+
 --process forms from spawner
 local on_receive_robot_form = function(pos, formname, fields, sender)
 		
@@ -1204,7 +1318,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  sender,mail = self.read_mail() reads mail, if any\n" ..
 			"  self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"  self.name() returns robot name\n"..
-			"  self.skin(textures) sets robot skin, textures is array of 6 textures\n"..
+			"  self.set_properties({textures=.., visual=..,visual_size=.., , ) sets visual appearance\n"..
+			"  set_animation(anim_start,anim_end,anim_speed,anim_stand_start) set mesh animation \n"..
 			"  self.spam(0/1) (dis)enable message repeat to all\n"..
 			"  self.remove() stops program and removes robot object\n"..
 			"  self.reset() resets robot position\n"..
@@ -1213,7 +1328,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
 			"  self.fire_pos() returns last hit position\n"..
 			"  self.label(text) changes robot label\n"..
-			"  self.display_text(text,linesize,size) displays text instead of robot face\n"..
+			"  self.display_text(text,linesize,size) displays text instead of robot face, if no size return tex\n"..
 			"  self.sound(sample,volume) plays sound named 'sample' at robot location\n"..
 			"  rom is aditional table that can store persistent data, like rom.x=1\n"..
 			"**KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
