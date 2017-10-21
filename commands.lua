@@ -21,22 +21,38 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	local yaw = obj:getyaw();
 	local pos = obj:getpos();
 	
-	if dir == 1 then
+	if dir == 1 then -- left
 		yaw = yaw + pi/2;
-		elseif dir == 2 then
-			yaw = yaw - pi/2;
-		elseif dir == 3 then
-		elseif dir == 4 then
-			yaw = yaw+pi;
-		elseif dir ==  5 then -- up
-			pos.y=pos.y+1
-		elseif dir ==  6 then -- down
-			pos.y=pos.y-1
-		elseif dir ==  7 then -- forward, down
-			pos.y=pos.y-1
+	elseif dir == 2 then --right
+		yaw = yaw - pi/2;
+	elseif dir == 3 then -- forward
+	elseif dir == 4 then
+		yaw = yaw+pi; -- backward
+	elseif dir ==  5 then -- up
+		pos.y=pos.y+1
+	elseif dir ==  6 then -- down
+		pos.y=pos.y-1
+		
+	elseif dir ==  7 then -- left_down
+		yaw = yaw + pi/2;pos.y=pos.y-1
+	elseif dir ==  8 then -- right_down
+		yaw = yaw - pi/2;pos.y=pos.y-1
+	elseif dir ==  9 then -- forward_down
+		pos.y=pos.y-1
+	elseif dir ==  10 then -- backward_down
+		yaw = yaw + pi; pos.y=pos.y-1
+	
+	elseif dir ==  11 then -- left_up
+		yaw = yaw + pi/2;pos.y=pos.y+1
+	elseif dir ==  12 then -- right_up
+		yaw = yaw - pi/2;pos.y=pos.y+1
+	elseif dir ==  13 then -- forward_up
+		pos.y=pos.y+1
+	elseif dir ==  14 then -- backward_up
+		yaw = yaw + pi; pos.y=pos.y-1
 	end
 	
-	if dir<5 or dir == 7 then -- left, right, back
+	if dir ~= 5 and dir ~= 6 then 
 		pos.x = pos.x+math.cos(yaw)
 		pos.z = pos.z+math.sin(yaw)
 	end
@@ -125,7 +141,7 @@ basic_robot.commands.dig = function(name,dir)
 			local data = basic_robot.data[name];
 			local energy = (data.menergy or 0) - digcost;
 			if energy<0 then 
-				return false, "need " .. digcost .. " energy "
+				error("need " .. digcost .. " energy to dig " .. nodename .. ". Use machine.generate(...) to get some energy."); 
 			end
 			data.menergy = energy;
 		end
@@ -281,6 +297,7 @@ basic_robot.commands.pickup = function(r,name)
 				picklist[#picklist+1]=detected_obj;
 				if inv:room_for_item("main", stack) then
 					inv:add_item("main", stack);
+					obj:setpos({x=0,y=0,z=0}) -- no dupe
 				end
 			obj:remove();
 			end
@@ -542,16 +559,43 @@ end
 
 
 local register_robot_button = function(R,G,B,type)
-minetest.register_node("basic_robot:button"..R..G..B, 
+	minetest.register_node("basic_robot:button"..R..G..B, 
+	 { 
+		description = "robot button",
+		tiles = {"robot_button.png^[colorize:#"..R..G..B..":180"},
+		inventory_image = "robot_button.png^[colorize:#"..R..G..B..":180",
+		wield_image = "robot_button.png^[colorize:#"..R..G..B..":180",
+		
+		is_ground_content = false,
+		groups = {cracky=3},
+		on_punch = function(pos, node, player)
+			local name = player:get_player_name(); if name==nil then return end
+			local round = math.floor;
+			local r = 32; local ry = 2*r; -- note: this is skyblock adjusted
+			local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
+			local meta = minetest.get_meta(ppos);
+			local name = meta:get_string("name");
+			local data = basic_robot.data[name];
+			if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+		end
+		
+	})
+end
+
+local register_robot_button_number = function(number,type)
+minetest.register_node("basic_robot:button"..number, 
  { 
 	description = "robot button",
-	tiles = {"robot_button.png^[colorize:#"..R..G..B..":180"},
+	tiles = {"robot_button".. number .. ".png"},
+	inventory_image = "robot_button".. number .. ".png",
+	wield_image = "robot_button".. number .. ".png",
+
 	is_ground_content = false,
 	groups = {cracky=3},
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
-		local r = 20; local ry = 2*r;
+		local r = 32; local ry = 2*r;
 		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
@@ -561,17 +605,20 @@ minetest.register_node("basic_robot:button"..R..G..B,
 	})
 end
 
-local register_robot_button_number = function(number,type)
-minetest.register_node("basic_robot:button"..number, 
+
+local register_robot_button_char = function(number,type)
+minetest.register_node("basic_robot:button_"..number, 
  { 
 	description = "robot button",
-	tiles = {"robot_button".. number .. ".png"},
+	tiles = {string.format("%03d",number).. ".png"},
+	inventory_image = string.format("%03d",number).. ".png",
+	wield_image = string.format("%03d",number).. ".png",
 	is_ground_content = false,
 	groups = {cracky=3},
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
-		local r = 20; local ry = 2*r;
+		local r = 32; local ry = 2*r;
 		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
@@ -580,6 +627,29 @@ minetest.register_node("basic_robot:button"..number,
 	end		
 	})
 end
+
+local register_robot_button_custom = function(number,texture)
+minetest.register_node("basic_robot:button_"..number, 
+ { 
+	description = "robot button",
+	tiles = {texture .. ".png"},
+	inventory_image = texture .. ".png",
+	wield_image = texture .. ".png",
+	is_ground_content = false,
+	groups = {cracky=3},
+	on_punch = function(pos, node, player)
+		local name = player:get_player_name(); if name==nil then return end
+		local round = math.floor;
+		local r = 32; local ry = 2*r;
+		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
+		local meta = minetest.get_meta(ppos);
+		local name = meta:get_string("name");
+		local data = basic_robot.data[name];
+		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = number} end
+	end		
+	})
+end
+
 
 register_robot_button("FF","FF","FF",1);
 register_robot_button("80","80","80",2);
@@ -589,6 +659,21 @@ register_robot_button("80","80","FF",5);
 register_robot_button("FF","FF","80",6);
 
 for i = 0,9 do register_robot_button_number(i,i+7) end
+for i = 0,255 do register_robot_button_char(i,i+17) end
+
+register_robot_button_custom(273,"puzzle_switch_off")
+register_robot_button_custom(274,"puzzle_switch_on")
+register_robot_button_custom(275,"puzzle_button_off")
+register_robot_button_custom(276,"puzzle_button_on")
+
+register_robot_button_custom(277,"puzzle_equalizer")
+register_robot_button_custom(278,"puzzle_setter")
+register_robot_button_custom(279,"puzzle_piston")
+
+register_robot_button_custom(280,"puzzle_diode")
+register_robot_button_custom(281,"puzzle_NOT")
+register_robot_button_custom(282,"puzzle_delayer")
+register_robot_button_custom(283,"puzzle_platform")
 
 
 
@@ -631,8 +716,10 @@ basic_robot.commands.keyboard = {
 			nodename = "basic_robot:button8080FF";
 		elseif type == 6 then
 			nodename = "basic_robot:buttonFFFF80";
-		elseif type>=7 then
+		elseif type>=7 and type <= 16 then 
 			nodename = "basic_robot:button"..(type-7);
+		else 
+			nodename = "basic_robot:button_"..(type-17);
 		end
 		
 		minetest.swap_node(pos, {name = nodename})
@@ -644,8 +731,8 @@ basic_robot.commands.keyboard = {
 
 basic_robot.commands.craftcache = {};
 
-basic_robot.commands.craft = function(item, mode, name)
-	if not item then return end
+basic_robot.commands.craft = function(item, mode, idx, name)
+	if not item then return false end
 	
 	local cache = basic_robot.commands.craftcache[name];
 	if not cache then basic_robot.commands.craftcache[name] = {}; cache = basic_robot.commands.craftcache[name] end
@@ -655,8 +742,14 @@ basic_robot.commands.craft = function(item, mode, name)
 		output = cache.output;
 	else
 
-		local craft = minetest.get_craft_recipe(item);
-		if craft and craft.type == "normal" and craft.items then else return end
+		local craft;
+
+		if not idx then 
+			craft = minetest.get_craft_recipe(item);
+		else
+			craft = minetest.get_all_craft_recipes(item)[idx]
+		end
+		if craft and craft.type == "normal" and craft.items then else return false end
 		output = craft.output;
 		local items = craft.items;
 		for _,item in pairs(items) do
@@ -1086,3 +1179,175 @@ basic_robot.commands.machine = {
 	end
 
 basic_robot.commands.crypto =  {encrypt = encrypt, decrypt = decrypt, scramble = scramble, basic_hash = get_hash}
+
+-- PUZZLE GAMEPLAY - need puzzle privs
+
+local is_same_block = function(pos1,pos2)
+	local round = math.floor;
+	local r = 32; local ry = 2*r; -- note: this is skyblock adjusted
+	local ppos1 = {round(pos1.x/r+0.5)*r,round(pos1.y/ry+0.5)*ry,round(pos1.z/r+0.5)*r};
+	local ppos2 = {round(pos2.x/r+0.5)*r,round(pos2.y/ry+0.5)*ry,round(pos2.z/r+0.5)*r};
+	return ppos1[1]==ppos2[1] and ppos1[2]==ppos2[2] and ppos1[3] == ppos2[3]
+end
+
+local cmd_set_node = function(data,pos,node)
+	if minetest.is_protected(pos,data.owner) then return end
+	local spos = data.spawnpos;
+	if not is_same_block(pos,spos) then return end -- only allow to edit same block as spawner is in
+	minetest.swap_node(pos,node)
+end
+
+local cmd_get_node_inv = function(data,pos)
+	local spos = data.spawnpos;
+	if minetest.is_protected(pos,data.owner) then return end
+	if not is_same_block(pos,spos) then return end
+	return minetest.get_meta(pos):get_inventory()
+end
+
+local cmd_get_player = function(data,pname) -- return player for further manipulation
+	local player = minetest.get_player_by_name(pname)
+	if not player then return end
+	local spos = data.spawnpos;
+	local ppos =  player:getpos();
+	if not is_same_block(ppos,spos) then return end
+	return player	
+end
+
+local cmd_get_player_inv = function(data,pname) 
+	local player = minetest.get_player_by_name(pname)
+	if not player then return end
+	local spos = data.spawnpos;
+	local ppos =  player:getpos();
+	if not is_same_block(ppos,spos) then return end
+	return player:get_inventory();
+end
+
+-- spatial triggers with hashing
+
+local trigger_range = 5 -- how close player must be to "activate" - also size/2 of cells
+
+local round = math.floor
+
+local cmd_get_pos_id = function(data,pos, no_neighbors) -- return 4 nearby block ids
+		local r = trigger_range*2;
+		local range = 1000*2; -- coordinates from -1000 to +1000 allowed
+		local n = range/r;
+		
+		local x1 = round(pos.x/r+0.5)
+		local z1 = round(pos.z/r+0.5)
+		local y1 = round(pos.y/r+0.5)
+		local baseid = x1 + z1*n + y1*n^2 -- hash value
+		if no_neighbors then return baseid end
+		
+		--check 4 nearby closest squares: 2D
+		local x0 = round(pos.x/r); 
+		local z0 = round(pos.z/r); 
+		if x0<x1 and z0<z1 then -- lower left
+			data.block_ids = {baseid,baseid-1-n,baseid-n,baseid-1};
+			return 
+		elseif x0==x1 and z0<z1 then 
+			data.block_ids = {baseid, baseid-n, baseid+1-n, baseid+1}
+			return 
+		elseif x0==x1 and z0==z1 then
+			data.block_ids = {baseid, baseid+1, baseid+1+n, baseid+n}
+			return 
+		else -- upper left
+			data.block_ids = {baseid,baseid-1, baseid-1+n, baseid+n}
+			return 
+		end
+
+	end
+
+local cmd_set_triggers = function(pdata, triggers)
+	pdata.triggers = {};
+	local dtriggers = pdata.triggers;
+	for i = 1,#triggers do
+		dtriggers[i] = triggers[i];
+	end
+		
+	-- init triggerdata
+	pdata.triggerdata = {};
+	local triggerdata = pdata.triggerdata;
+	
+	for i = 1, #triggers do
+		local data = triggers[i]; 
+		local id = cmd_get_pos_id(nil,data.pos, true);
+		local tdata = triggerdata[id];
+		if not tdata then triggerdata[id] = {}; tdata = triggerdata[id] end
+		tdata[#tdata+1] = i; -- add index (=id)
+		triggers[i].init(i) -- initialize trigger
+	end
+end
+
+local cmd_checkpos = function(data,pos,pname) -- does the position pos trigger any triggers?
+		
+		cmd_get_pos_id(data,pos); -- we dont init new table structure every time but store ids in block_ids
+		
+		local block_ids = data.block_ids;
+		local gamedata = data.gamedata;
+		local triggerdata = data.triggerdata;
+		local triggers = data.triggers;
+		
+		for j = 1,4 do -- check 4 nearby blocks cause we could be near border
+			local block_id = block_ids[j];
+			local gdata = gamedata;
+			
+			local tdata = triggerdata[block_id]; -- list of trigger indices in this block
+			if tdata then 
+				for i = 1,#tdata do -- check all triggers inside block
+					local trigger = triggers[tdata[i]];
+					local id = tdata[i]; -- trigger id
+					if trigger.onetime and gdata[id] then -- trigger already "triggered"
+					else 
+						--say("trigger " .. id)
+						trigger.action(pname,id)
+					end
+				end
+			end
+		end
+	end
+
+	
+-- PUZZLE COMMANDS
+basic_robot.commands.puzzle = {
+	set_triggers = cmd_set_triggers, checkpos = cmd_checkpos,set_node = cmd_set_node, get_node_inv=cmd_get_node_inv, get_player_inv = cmd_get_player_inv,
+	get_player = cmd_get_player,
+	get_meta =  function(data,pos)
+		local spos = data.spawnpos;	
+		if minetest.is_protected(pos,data.owner) then return end
+		if not is_same_block(pos,spos) then return end
+		if minetest.get_node(pos).name == "basic_robot:spawner" then return end
+		return minetest.get_meta(pos)
+	end,
+	get_gametime = function() return minetest.get_gametime() end,
+	
+	activate = function(data,mode,tpos)
+		local spos = data.spawnpos;
+		if minetest.is_protected(tpos,data.owner) then return end
+		if not is_same_block(tpos,spos) then return end
+		
+		local node = minetest.get_node(tpos);
+		if node.name == "default:furnace" or node.name == "default:furnace_active" then
+			if mode>0 then robot_activate_furnace(tpos) end
+			return true
+		end	
+		
+		local table = minetest.registered_nodes[node.name];
+		if table and table.mesecons and table.mesecons.effector then 
+		else
+			return false
+		end -- error
+		
+		local effector=table.mesecons.effector;
+		
+		if not mode then mode = 1 end
+		if mode > 0 then
+			if not effector.action_on then return false end
+			effector.action_on(tpos,node,16)
+		elseif mode<0 then
+			if not effector.action_off then return false end
+			effector.action_off(tpos,node,16)
+		end
+		return true
+	end,
+}

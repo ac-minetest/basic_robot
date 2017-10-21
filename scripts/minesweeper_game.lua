@@ -1,6 +1,11 @@
+-- minesweeper
 if not data then
-	m=10;n=10; minescount = 32;
+	m=24;n=22; minescount = m*n/5;
+	reward = 30;
+
+	if not find_player(4) then error("minesweeper: no players near") end
 	
+	self.spam(1)	
 	t0 = _G.minetest.get_gametime();
 	data = {}; spawnpos = self.spawnpos() -- place mines
 	for i = 1, minescount do local i = math.random(m); local j = math.random(n); if not data[i] then data[i] = {} end; data[i][j] = 1; end
@@ -11,10 +16,11 @@ if not data then
 	for i = 1,m do for j = 1,n do  -- render game
 		if data[i] and data[i][j] == 1 then minescount = minescount + 1 end
 		if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j})~="basic_robot:button808080" then
-			keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},2)
+			puzzle.set_node({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},{name = "basic_robot:button808080"})
 		end
 	end	end
-	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z+1},4) -- safe start spot
+	puzzle.set_node({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z+1},{name = "basic_robot:button80FF80"})
+
 	get_mine_count = function(i,j)
 		if i<0 or i>m+1 or j<0 or j>n+1 then return 0 end; count = 0
 		for k = -1,1 do	for l = -1,1 do
@@ -45,27 +51,32 @@ if event then
 			if count == 0 then 
 				t0 = _G.minetest.get_gametime() - t0;
 				say("congratulations! " .. event.puncher .. " discovered all mines in " .. t0 .. " s")
-				_G.minetest.add_item({x=spawnpos.x,y=spawnpos.y+1,z=spawnpos.z},_G.itemstack("default:diamond 5")) -- diamond reward
+				_G.minetest.add_item({x=spawnpos.x,y=spawnpos.y+1,z=spawnpos.z},_G.ItemStack("default:gold_ingot "..reward)) -- diamond reward
 			else
-				say("FAIL! " .. count .. " mines remaining ")
+				reward = reward*(1-(count/minescount))^(1.5); reward = math.floor(reward);
+				say("FAIL! " .. count .. " mines remaining. You get " .. reward .. " gold for found mines")
+				_G.minetest.add_item({x=spawnpos.x,y=spawnpos.y+1,z=spawnpos.z},_G.ItemStack("default:gold_ingot "..reward)) -- diamond reward
 			end
 			self.remove()
 		end
-	elseif event.type == 2 then
+	else --if event.type == 2 then
 		local ppos = player.getpos(event.puncher)
 		if ppos and math.abs(ppos.x-event.x)<0.5 and math.abs(ppos.z-event.z)<0.5 then -- just mark mine
 			if keyboard.read({x=event.x,y=event.y,z=event.z})~="basic_robot:button808080" then
-				keyboard.set({x=event.x,y=event.y,z=event.z},2) 
+				puzzle.set_node({x=event.x,y=event.y,z=event.z},{name = "basic_robot:button808080"})
 			else
-				keyboard.set({x=event.x,y=event.y,z=event.z},3)
+				puzzle.set_node({x=event.x,y=event.y,z=event.z},{name = "basic_robot:buttonFF8080"})
 			end
 		else
 			if data[x] and data[x][z]==1 then
-					say("boom! "..event.puncher .. " is dead ");keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},3);self.remove()
+					say("boom! "..event.puncher .. " is dead ");puzzle.set_node({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},{name = "basic_robot:buttonFF8080"});
+					local player_ = puzzle.get_player(event.puncher);
+					player_:setpos({x=spawnpos.x-1,y=spawnpos.y+1,z=spawnpos.z-1});					
+					self.remove()
 			else
 				local count = get_mine_count(x,z);
-				if count == 0 then keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},4)
-				else keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},7+count) end
+				if count == 0 then puzzle.set_node({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},{name = "basic_robot:button80FF80"})
+				else puzzle.set_node({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},{name = "basic_robot:button"..count}) end
 			end
 		end
 	end

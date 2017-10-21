@@ -4,8 +4,8 @@
 basic_robot = {};
 ----  SETTINGS  ------
 basic_robot.call_limit = 48; -- how many execution calls per script run allowed
-basic_robot.entry_count = 2
-basic_robot.advanced_count = 16
+basic_robot.entry_count = 2 -- how many robot ordinary player can have
+basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories
@@ -15,9 +15,9 @@ basic_robot.maxoperations = 2; -- how many operations (dig, generate energy,..) 
 basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 ----------------------
 
+basic_robot.http_api = minetest.request_http_api(); 
 
-
-basic_robot.version = "2017/07/18a";
+basic_robot.version = "2017/10	/07a";
 
 basic_robot.data = {}; -- stores all robot data
 --[[
@@ -39,19 +39,26 @@ local check_code, preprocess_code,is_inside_string;
 function getSandboxEnv (name)
 	
 	local commands = basic_robot.commands;
+	local directions = {left = 1, right = 2, forward = 3, backward = 4, up = 5, down = 6, 
+		left_down = 7, right_down = 8, forward_down = 9, backward_down = 10,
+		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
+		}
+	
 	local env = 
 	{
 		pcall=pcall,
 		robot_version = function() return basic_robot.version end,
 		
-		move = { -- changes position of robot
-			left = function() return commands.move(name,1) end,
-			right = function() return commands.move(name,2) end,
-			forward = function() return commands.move(name,3) end,
-			backward = function() return commands.move(name,4) end,
-			up = function() return commands.move(name,5) end,
-			down = function() return commands.move(name,6) end,
-		},
+		boost = function(v) 
+			if math.abs(v)>2 then v = 0 end; local obj = basic_robot.data[name].obj;
+			if v == 0 then 
+				local pos = obj:getpos(); pos.x = math.floor(pos.x+0.5);pos.y = math.floor(pos.y+0.5); pos.z = math.floor(pos.z+0.5);
+				obj:setpos(pos); obj:set_velocity({x=0,y=0,z=0});
+				return
+			end
+			local yaw = obj:get_yaw();
+			obj:set_velocity({x=v*math.cos(yaw),y=0,z=v*math.sin(yaw)});
+		end,
 		
 		turn = {
 			left = function() commands.turn(name,math.pi/2) end,
@@ -59,73 +66,12 @@ function getSandboxEnv (name)
 			angle = function(angle) commands.turn(name,angle*math.pi/180) end,
 		},
 		
-		dig = {
-			left = function() return commands.dig(name,1) end,
-			right = function() return commands.dig(name,2) end,
-			forward = function() return commands.dig(name,3) end,
-			backward = function() return commands.dig(name,4) end,
-			down = function() return commands.dig(name,6) end,
-			up = function() return commands.dig(name,5) end,
-			forward_down = function() return commands.dig(name,7) end,
-		},
-		
-		place = {
-			left = function(nodename, param2) return commands.place(name,nodename, param2, 1) end,
-			right = function(nodename, param2) return commands.place(name,nodename, param2, 2) end,
-			forward = function(nodename, param2) return commands.place(name,nodename, param2, 3) end,
-			backward = function(nodename, param2) return commands.place(name,nodename, param2, 4) end,
-			down = function(nodename, param2) return commands.place(name,nodename, param2, 6) end,
-			up = function(nodename, param2) return commands.place(name,nodename, param2, 5) end,
-			forward_down = function(nodename, param2) return commands.place(name,nodename, param2, 7) end,
-		},
-		
-		insert = { -- insert item from robot inventory into another inventory
-			left = function(item, inventory) return commands.insert_item(name,item, inventory,1) end,
-			right = function(item, inventory) return commands.insert_item(name,item, inventory,2) end,
-			forward = function(item, inventory) return commands.insert_item(name,item, inventory,3) end,
-			backward = function(item, inventory) return commands.insert_item(name,item, inventory,4) end,
-			down = function(item, inventory) return commands.insert_item(name,item, inventory,6) end,
-			up = function(item, inventory) return commands.insert_item(name,item, inventory,5) end,
-			forward_down = function(item, inventory) return commands.insert_item(name,item, inventory,7) end,
-		},
-		
-		take = { -- takes item from inventory and puts it in robot inventory
-			left = function(item, inventory) return commands.take_item(name,item, inventory,1) end,
-			right = function(item, inventory) return commands.take_item(name,item, inventory,2) end,
-			forward = function(item, inventory) return commands.take_item(name,item, inventory,3) end,
-			backward = function(item, inventory) return commands.take_item(name,item, inventory,4) end,
-			down = function(item, inventory) return commands.take_item(name,item, inventory,6) end,
-			up = function(item, inventory) return commands.take_item(name,item, inventory,5) end,
-			forward_down = function(item, inventory) return commands.take_item(name,item, inventory,7) end,
-		
-		},
-		check_inventory = {
-			left = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,1) end,
-			right = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,2) end,
-			forward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,3) end,
-			backward = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,4) end,
-			down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,6) end,
-			up = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,5) end,
-			forward_down = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,7) end,
-			self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end,
-		},
-		
-		activate = {
-			left = function(mode) return commands.activate(name,mode, 1) end,
-			right = function(mode) return commands.activate(name,mode, 2) end,
-			forward = function(mode) return commands.activate(name,mode, 3) end,
-			backward = function(mode) return commands.activate(name,mode, 4) end,
-			down = function(mode) return commands.activate(name,mode, 6) end,
-			up = function(mode) return commands.activate(name,mode, 5) end,
-			forward_down = function(mode) return commands.activate(name,mode, 7) end,
-		},
-		
 		pickup = function(r) -- pick up items around robot
 			return commands.pickup(r, name);
 		end,
 		
-		craft = function(item, mode)
-			return commands.craft(item, mode, name)
+		craft = function(item, idx,mode)
+			return commands.craft(item, mode, idx, name)
 		end,
 		
 		self = {
@@ -135,8 +81,7 @@ function getSandboxEnv (name)
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
 			set_properties = function(properties)
-				if not properties then return end
-				local obj = basic_robot.data[name].obj;
+				if not properties then return end; local obj = basic_robot.data[name].obj;
 				obj:set_properties(properties);
 			end,
 			
@@ -212,26 +157,28 @@ function getSandboxEnv (name)
 				end
 			end,
 			
-			fire = function(speed, pitch,gravity) -- experimental: fires an projectile
+			fire = function(speed, pitch,gravity, is_entity) -- experimental: fires an projectile
 				local obj = basic_robot.data[name].obj;
 				local pos = obj:getpos();
 				local yaw = obj:getyaw();
 				pitch = pitch*math.pi/180
 				local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
 				-- fire particle
-				-- minetest.add_particle(
-				-- {
-					-- pos = pos,
-					-- expirationtime = 10,
-					-- velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
-					-- size = 5,
-					-- texture = "default_apple.png",
-					-- acceleration = {x=0,y=-gravity,z=0},
-					-- collisiondetection = true,
-					-- collision_removal = true,			
-				-- }
-				--);
-				
+				if not is_entity then 
+					minetest.add_particle(
+					{
+						pos = pos,
+						expirationtime = 10,
+						velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
+						size = 5,
+						texture = "default_apple.png",
+						acceleration = {x=0,y=-gravity,z=0},
+						collisiondetection = true,
+						collision_removal = true,			
+					}
+					);
+				return 
+				end
 				local obj = minetest.add_entity(pos, "basic_robot:projectile");
 				if not obj then return end
 				obj:setvelocity(velocity);
@@ -258,7 +205,16 @@ function getSandboxEnv (name)
 				return commands.display_text(obj,text,linesize,size)
 			end,
 			
-			sound = function(sample,volume)
+			sound = function(sample,volume, pos)
+				if pos then
+					return minetest.sound_play( sample,
+					{
+						pos = pos,
+						gain = volume or 1, 
+						max_hear_distance = 32, -- default, uses an euclidean metric
+					})
+				end
+				
 				local obj = basic_robot.data[name].obj;
 				return minetest.sound_play( sample,
 				{
@@ -289,6 +245,7 @@ function getSandboxEnv (name)
 			scramble = commands.crypto.scramble, 
 			basic_hash = commands.crypto.basic_hash,
 			};
+			
 		
 		keyboard = {
 			get = function() return commands.keyboard.get(name) end,
@@ -306,9 +263,10 @@ function getSandboxEnv (name)
 			end, -- in radius around position
 		
 		find_player = 
-			function(r) 
-				if r>8 then return false end
-				local objects =  minetest.get_objects_inside_radius(basic_robot.data[name].obj:getpos(), r);
+			function(r,pos) 
+				pos = pos or basic_robot.data[name].obj:getpos();
+				if r>10 then return false end
+				local objects =  minetest.get_objects_inside_radius(pos, r);
 				local plist = {};
 				for _,obj in pairs(objects) do
 					if obj:is_player() then 
@@ -339,36 +297,6 @@ function getSandboxEnv (name)
 		
 		grab = function(target) return basic_robot.commands.grab(name,target) end,
 		
-		read_node = { -- returns node name
-			left = function() return commands.read_node(name,1) end,
-			right = function() return commands.read_node(name,2) end,
-			forward = function() return commands.read_node(name,3) end,
-			backward = function() return commands.read_node(name,4) end,
-			down = function() return commands.read_node(name,6) end,
-			up = function() return commands.read_node(name,5) end,
-			forward_down = function() return commands.read_node(name,7) end,
-		},
-		
-		read_text = { -- returns text
-			left = function(stringname,mode) return commands.read_text(name,mode,1,stringname	) end,
-			right = function(stringname,mode) return commands.read_text(name,mode,2,stringname) end,
-			forward = function(stringname,mode) return commands.read_text(name,mode,3,stringname) end,
-			backward = function(stringname,mode) return commands.read_text(name,mode,4,stringname) end,
-			down = function(stringname,mode) return commands.read_text(name,mode,6,stringname) end,
-			up = function(stringname,mode) return commands.read_text(name,mode,5,stringname) end,
-			forward_down = function(stringname,mode) return commands.read_text(name,mode,7,stringname) end,
-		},
-		
-		write_text = { -- returns text
-			left = function(text) return commands.write_text(name,1,text) end,
-			right = function(text) return commands.write_text(name,2,text) end,
-			forward = function(text) return commands.write_text(name,3,text) end,
-			backward = function(text) return commands.write_text(name,4,text) end,
-			down = function(text) return commands.write_text(name,6,text) end,
-			up = function(text) return commands.write_text(name,5,text) end,
-			forward_down = function(text) return commands.write_text(name,7,text) end,
-			
-		},
 		
 		say = function(text, owneronly)
 			if not basic_robot.data[name].quiet_mode and not owneronly then
@@ -487,6 +415,8 @@ function getSandboxEnv (name)
 		},
 		
 		colorize = core.colorize,
+		serialize = minetest.serialize,
+		deserialize = minetest.deserialize,
 		tonumber = tonumber, pairs = pairs,
 		ipairs = ipairs, error = error, type=type,
 		
@@ -501,6 +431,93 @@ function getSandboxEnv (name)
 			basic_robot.data[name].ccounter = _ccounter + 1;
 		end,
 	};
+	
+	-- ROBOT FUNCTIONS: move,dig, place,insert,take,check_inventory,activate,read_node,read_text,write_text
+	
+	env.move = {}; -- changes position of robot
+	for dir, dir_id in pairs(directions) do
+		env.move[dir]  =  function() return commands.move(name,dir_id) end
+	end
+	
+	env.dig = {};
+	for dir, dir_id in pairs(directions) do
+		env.dig[dir]  =  function() return commands.dig(name,dir_id) end
+	end
+	
+	env.place = {};
+	for dir, dir_id in pairs(directions) do
+		env.place[dir] = function(nodename, param2) return commands.place(name,nodename, param2, dir_id) end
+	end
+	
+	env.insert = {}; -- insert item from robot inventory into another inventory
+	for dir, dir_id in pairs(directions) do
+		env.insert[dir] = function(item, inventory) return commands.insert_item(name,item, inventory,dir_id) end
+	end
+
+	env.take = {}; -- takes item from inventory and puts it in robot inventory
+	for dir, dir_id in pairs(directions) do
+		env.take[dir] = function(item, inventory) return commands.take_item(name,item, inventory,dir_id) end
+	end
+	
+	env.check_inventory = {};
+	for dir, dir_id in pairs(directions) do
+		env.check_inventory[dir] = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,dir_id) end
+	end
+	env.check_inventory.self = function(itemname, inventory,i) return commands.check_inventory(name,itemname, inventory,i,0) end;
+	
+	env.activate = {};
+	for dir, dir_id in pairs(directions) do
+		env.activate[dir] = function(mode) return commands.activate(name,mode, dir_id) end
+	end
+	
+	env.read_node = {};
+	for dir, dir_id in pairs(directions) do
+		env.read_node[dir] = function() return commands.read_node(name,dir_id) end
+	end
+	
+	env.read_text = {} -- returns text
+	for dir, dir_id in pairs(directions) do
+		env.read_text[dir] = function(stringname,mode) return commands.read_text(name,mode,dir_id,stringname) end
+	end
+	
+	env.write_text = {} -- returns text
+	for dir, dir_id in pairs(directions) do
+		env.write_text[dir] = function(text) return commands.write_text(name, dir_id,text) end
+	end
+			
+	-- set up sandbox for puzzle
+	
+	local ispuzzle = basic_robot.data[name].ispuzzle; -- need puzzle privs
+	if ispuzzle == 1 then
+		basic_robot.data[name].puzzle = {};
+		local data = basic_robot.data[name];
+		local pdata = data.puzzle;
+		pdata.triggerdata = {};
+		pdata.gamedata = {};
+		pdata.block_ids = {}
+		pdata.triggers = {};
+		env.puzzle = { -- puzzle functionality
+			set_node = function(pos,node) commands.puzzle.set_node(data,pos,node) end,
+			get_node = function(pos) return minetest.get_node(pos) end,
+			activate = function(mode,pos) commands.puzzle.activate(data,mode,pos) end,
+			get_meta = function(pos) return commands.puzzle.get_meta(data,pos) end,
+			get_gametime = function() return minetest.get_gametime() end,
+			get_node_inv = function(pos) return commands.puzzle.get_node_inv(data,pos) end,
+			get_player = function(pname) return commands.puzzle.get_player(data,pname) end,
+			chat_send_player = function(pname, text)	minetest.chat_send_player(pname or "", text)	end,
+			get_player_inv = function(pname) return commands.puzzle.get_player_inv(data,pname) end,
+			set_triggers = function(triggers) commands.puzzle.set_triggers(pdata,triggers) end, -- FIX THIS!
+			check_triggers = function(pname) 
+				local player = minetest.get_player_by_name(pname); if not player then return end
+				commands.puzzle.checkpos(pdata,player:getpos(),pname) 
+			end,
+			add_particle = function(def) minetest.add_particle(def) end,
+			count_objects = function(pos,radius) return #minetest.get_objects_inside_radius(pos, math.min(radius,5)) end,
+			pdata = pdata,
+			ItemStack = ItemStack,
+		}
+	end
+	
 
 	--special sandbox for admin
 	local isadmin=basic_robot.data[name].isadmin
@@ -508,6 +525,7 @@ function getSandboxEnv (name)
 	if isadmin~=1 then
 		env._G = env;
 	else
+		env.minetest = minetest;
 		env._G=_G;
 		debug = debug;
 	end
@@ -738,7 +756,7 @@ local robot_spawner_update_form = function (pos, mode)
 			 
 	end
 		
-	if mode ==1 then return form end
+	if mode == 1 then return form end
 	meta:set_string("formspec",form)
 
 end
@@ -789,6 +807,8 @@ local function init_robot(obj)
 	
 	-- check if admin robot
 	if self.isadmin then basic_robot.data[name].isadmin = 1 end
+	-- can we do puzzles?
+	if self.ispuzzle then basic_robot.data[name].ispuzzle = 1 end
 	
 	--robot appearance,armor...
 	obj:set_properties({infotext = "robot " .. name});
@@ -1040,7 +1060,7 @@ local spawn_robot = function(pos,node,ttl)
 	luaent.code = meta:get_string("code");
     luaent.spawnpos = {x=pos.x,y=pos.y-1,z=pos.z};
 	if meta:get_int("admin") == 1 then luaent.isadmin = 1 end
-				
+	if meta:get_int("puzzle") == 1 then luaent.ispuzzle = 1 end				
 			
 	local data = basic_robot.data[name];
 	if data == nil then
@@ -1279,7 +1299,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			return
 		end
 		
-		if fields.help then 
+		if fields.help then ----- INGAME HELP ------
 			
 			local text =  "BASIC LUA SYNTAX\n \nif x==1 then A else B end"..
 			"\n  for i = 1, 5 do something end \nwhile i<6 do A; i=i+1; end\n"..
@@ -1287,7 +1307,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n \n"..
 			"ROBOT COMMANDS\n \n"..
 			"**MOVEMENT,DIGGING, PLACING, INVENTORY TAKE/INSERT\n  move.direction(), where direction is forward, backward, left,right, up, down)\n"..
-			"  forward_down direction only works with dig, place and read_node\n"..
+			"  left_down, ...,  backward_down, left_up, ..., backward_up\n"..
+			"  boost(v) sets robot velocity, -6<v<6, if v = 0 then stop\n"..
 			"  turn.left(), turn.right(), turn.angle(45)\n"..
 			"  dig.direction()\n"..
 			"  place.direction(\"default:dirt\", optional orientation param)\n"..
@@ -1297,7 +1318,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"    if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
 			"  activate.direction(mode) activates target block\n"..
 			"  pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
-			"  craft(item,mode) crafts item if required materials are present in inventory. mode = 1 returns recipe\n"..
+			"  craft(item,idx,mode) crafts item if required materials are present in inventory. mode = 1 returns recipe, optional recipe idx\n"..
 			"  take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
 			"  read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
 			"  write_text.direction(text,mode) writes text to target block as infotext\n"..
@@ -1306,7 +1327,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  code.set(text) replaces current bytecode of robot\n"..
 			"  find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
 			"**PLAYERS\n"..
-			"  find_player(3) finds players in radius 3 around robot and returns list, if none returns nil\n"..
+			"  find_player(3,pos) finds players in radius 3 around robot(position) and returns list, if none returns nil\n"..
 			"  attack(target) attempts to attack target player if nearby \n"..
 			"  grab(target) attempt to grab target player if nearby and returns true if succesful \n"..
 			"  player.getpos(name) return position of player, player.connected() returns list of players\n"..
@@ -1329,11 +1350,11 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  self.fire_pos() returns last hit position\n"..
 			"  self.label(text) changes robot label\n"..
 			"  self.display_text(text,linesize,size) displays text instead of robot face, if no size return tex\n"..
-			"  self.sound(sample,volume) plays sound named 'sample' at robot location\n"..
+			"  self.sound(sample,volume, opt. pos) plays sound named 'sample' at robot location (opt. pos)\n"..
 			"  rom is aditional table that can store persistent data, like rom.x=1\n"..
 			"**KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
 			"  keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
-			"  keyboard.set(pos,type) set key at pos of type 0=air, 1..6, limited to range 10 around\n"..
+			"  keyboard.set(pos,type) set key at pos of type 0=air,1-6,7-15,16-271, limited to range 10 around\n"..
 			"  keyboard.read(pos) return node name at pos\n"..
 			"**TECHNIC FUNCTIONALITY: namespace 'machine'. most functions return true or nil, error\n" ..
 			"  energy() displays available energy\n"..
@@ -1350,7 +1371,21 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  encrypt(input,password) returns encrypted text, password is any string \n"..
 			"  decrypt(input,password) attempts to decrypt encrypted text\n"..
 			"  scramble(input,randomseed,sgn)  (de)permutes text randomly according to sgn = -1,1\n"..
-			"  basic_hash(input,n) returns simple mod hash from string input within range 0...n-1\n";
+			"  basic_hash(input,n) returns simple mod hash from string input within range 0...n-1\n"..
+			"**PUZZLE: namespace 'puzzle' - need puzzle priv\n"..
+			"  set_triggers({trigger1, trigger2,...}) sets and initializes spatial triggers\n"..
+			"  check_triggers(pname) check if player is close to any trigger and run that trigger\n"..
+			"  set_node(pos,node) - set any node, limited to current protector mapblock & get_node(pos)\n"..
+			"  get_player(pname) return player objRef in current mapblock\n"..
+			"  chat_send_player(pname, text) \n"..
+			"  get_node_inv(pos) / get_player_inv(pname) - return inventories of nodes/players in current mapblock\n"..
+			"  get_meta(pos) - return meta of target position\n"..
+			"  get_gametime() - return current gametime\n"..
+			"  ItemStack(itemname) returns ItemRef to be used with inventory\n"..
+			"  count_objects(pos,radius)\n"..
+			"  pdata contains puzzle data like .triggers and .gamedata\n"..
+			"  add_particle(def)\n"
+			
 			
 			text = minetest.formspec_escape(text);
 			
@@ -1601,6 +1636,7 @@ minetest.register_on_player_receive_fields(
 					lines[selection]= fields.input 
 				end
 				local meta = minetest.get_meta(pos);
+				if not lines then return end
 				local code = table.concat(lines,"\n");
 				meta:set_string("code",code);
 				basic_robot.editor[name].lines = {};
@@ -1685,7 +1721,9 @@ minetest.register_node("basic_robot:spawner", {
 	after_place_node = function(pos, placer)
 		local meta = minetest.env:get_meta(pos)
 		meta:set_string("owner", placer:get_player_name()); 
-		local privs = minetest.get_player_privs(placer:get_player_name()); if privs.privs then meta:set_int("admin",1) end
+		local privs = minetest.get_player_privs(placer:get_player_name()); 
+		if privs.privs then meta:set_int("admin",1) end
+		if privs.puzzle then meta:set_int("puzzle",1) end
 	
 		meta:set_string("code","");
 		meta:set_int("id",1); -- initial robot id
@@ -1787,6 +1825,22 @@ minetest.register_craftitem("basic_robot:control", {
 	on_use = function(itemstack, user, pointed_thing)
 		
 		local owner = user:get_player_name();
+		
+		local script = itemstack:get_metadata();
+		if script == "@" then -- remote control as a tool - notify robot in current block of pointed position
+			local round = math.floor;
+			local r = 32; local ry = 2*r; -- note: this is skyblock adjusted
+			local pos  = pointed_thing.under
+			if not pos then return end
+			local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
+			local meta = minetest.get_meta(ppos);
+			local name = meta:get_string("name");
+			local data = basic_robot.data[name];
+			if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = owner, type = 0} end
+			return
+		end
+		
+		
 		local ids = basic_robot.ids[owner]; if not ids then setupid(owner) end
 		local id = basic_robot.ids[owner].id or 1; -- read active id
 		local name = owner .. id
@@ -1812,7 +1866,6 @@ minetest.register_craftitem("basic_robot:control", {
 			end
 		end
 		
-		local script = itemstack:get_metadata();
 		if script == "" then
 			--display control form
 			minetest.show_formspec(owner, "robot_manual_control_" .. name, get_manual_control_form(name));
@@ -1913,3 +1966,4 @@ minetest.register_craft({
 
 
 minetest.register_privilege("robot", "increased number of allowed active robots")
+minetest.register_privilege("puzzle", "allow player to use puzzle. namespace in robots")
