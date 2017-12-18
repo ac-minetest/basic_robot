@@ -4,10 +4,10 @@
 basic_robot = {};
 ----  SETTINGS  ------
 basic_robot.call_limit = 48; -- how many execution calls per script run allowed
-basic_robot.entry_count = 2 -- how many robot ordinary player can have
+basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-basic_robot.password = "robot passw0rd"; -- IMPORTANT: change it before running mod, server private password used for authentifications
+basic_robot.password = "password"; -- IMPORTANT: change it before running mod, password used for authentifications
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
@@ -20,13 +20,13 @@ basic_robot.http_api = minetest.request_http_api();
 
 basic_robot.version = "2017/12/18a";
 
-basic_robot.data = {}; -- stores all robot data
+basic_robot.data = {}; -- stores all robot related data
 --[[
-[name] = { sandbox= .., bytecode = ..., ram = ..., obj = robot object,spawnpos=...} 
+[name] = { sandbox= .., bytecode = ..., ram = ..., obj = robot object, spawnpos= ..., authlevel = ...} 
 robot object = object of entity, used to manipulate movements and more
 --]]
 basic_robot.ids = {}; -- stores maxid for each player
---[name] = {id = .., maxid = .. }, current id, how many robot ids player can use
+--[name] = {id = .., maxid = .. }, current id for robot controller, how many robot ids player can use
 
 basic_robot.data.listening = {}; -- which robots listen to chat
 dofile(minetest.get_modpath("basic_robot").."/commands.lua")
@@ -149,7 +149,7 @@ function getSandboxEnv (name)
 				end
 			end,
 			
-			fire = function(speed, pitch,gravity, is_entity) -- experimental: fires an projectile
+			fire = function(speed, pitch,gravity, texture, is_entity) -- experimental: fires an projectile
 				local obj = basic_robot.data[name].obj;
 				local pos = obj:getpos();
 				local yaw = obj:getyaw();
@@ -163,7 +163,7 @@ function getSandboxEnv (name)
 						expirationtime = 10,
 						velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)},
 						size = 5,
-						texture = "default_apple.png",
+						texture = texture or "default_apple.png",
 						acceleration = {x=0,y=-gravity,z=0},
 						collisiondetection = true,
 						collision_removal = true,			
@@ -1363,7 +1363,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  self.reset() resets robot position\n"..
 			"  self.spawnpos() returns position of spawner block\n"..
 			"  self.viewdir() returns vector of view for robot\n"..
-			"  self.fire(speed, pitch,gravity) fires a projectile from robot\n"..
+			"  self.fire(speed, pitch,gravity, texture, is_entity) fires a projectile from robot\n"..
 			"  self.fire_pos() returns last hit position\n"..
 			"  self.label(text) changes robot label\n"..
 			"  self.display_text(text,linesize,size) displays text instead of robot face, if no size return tex\n"..
