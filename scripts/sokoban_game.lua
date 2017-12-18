@@ -1,7 +1,7 @@
 	-- SOKOBAN GAME, by rnd, robots port
 	if not sokoban then
 		sokoban = {};
-		local players = find_player(4);
+		local players = find_player(5);
 		if not players then error("sokoban: no player near") end
 		name = players[1];
 		
@@ -37,7 +37,7 @@
 			if lvl == nil then return end
 			if lvl <0 or lvl >89 then return end
 			
-			local file = _G.io.open(minetest.get_modpath("basic_robot").."/scripts/sokoban.txt","r")
+			local file = _G.io.open(minetest.get_modpath("basic_robot").."\\scripts\\sokoban.txt","r")
 			if not file then return end
 			local str = ""; local s; local p = {x=pos.x,y=pos.y,z=pos.z}; local i,j;i=0;
 			local lvl_found = false

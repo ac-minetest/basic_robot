@@ -49,7 +49,7 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	elseif dir ==  13 then -- forward_up
 		pos.y=pos.y+1
 	elseif dir ==  14 then -- backward_up
-		yaw = yaw + pi; pos.y=pos.y-1
+		yaw = yaw + pi; pos.y=pos.y+1
 	end
 	
 	if dir ~= 5 and dir ~= 6 then 
@@ -571,7 +571,7 @@ local register_robot_button = function(R,G,B,type)
 		on_punch = function(pos, node, player)
 			local name = player:get_player_name(); if name==nil then return end
 			local round = math.floor;
-			local r = 32; local ry = 2*r; -- note: this is skyblock adjusted
+			local r = basic_robot.radius; local ry = 2*r; -- note: this is skyblock adjusted
 			local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
 			local meta = minetest.get_meta(ppos);
 			local name = meta:get_string("name");
@@ -595,7 +595,7 @@ minetest.register_node("basic_robot:button"..number,
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
-		local r = 32; local ry = 2*r;
+		local r = basic_robot.radius; local ry = 2*r;
 		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
@@ -618,7 +618,7 @@ minetest.register_node("basic_robot:button_"..number,
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
-		local r = 32; local ry = 2*r;
+		local r = basic_robot.radius; local ry = 2*r;
 		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
@@ -640,7 +640,7 @@ minetest.register_node("basic_robot:button_"..number,
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
-		local r = 32; local ry = 2*r;
+		local r = basic_robot.radius; local ry = 2*r;
 		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
@@ -674,6 +674,9 @@ register_robot_button_custom(280,"puzzle_diode")
 register_robot_button_custom(281,"puzzle_NOT")
 register_robot_button_custom(282,"puzzle_delayer")
 register_robot_button_custom(283,"puzzle_platform")
+
+register_robot_button_custom(284,"puzzle_giver")
+register_robot_button_custom(285,"puzzle_checker")
 
 
 
@@ -1184,7 +1187,7 @@ basic_robot.commands.crypto =  {encrypt = encrypt, decrypt = decrypt, scramble =
 
 local is_same_block = function(pos1,pos2)
 	local round = math.floor;
-	local r = 32; local ry = 2*r; -- note: this is skyblock adjusted
+	local r = basic_robot.radius; local ry = 2*r; -- note: this is skyblock adjusted
 	local ppos1 = {round(pos1.x/r+0.5)*r,round(pos1.y/ry+0.5)*ry,round(pos1.z/r+0.5)*r};
 	local ppos2 = {round(pos2.x/r+0.5)*r,round(pos2.y/ry+0.5)*ry,round(pos2.z/r+0.5)*r};
 	return ppos1[1]==ppos2[1] and ppos1[2]==ppos2[2] and ppos1[3] == ppos2[3]
