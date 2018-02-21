@@ -18,7 +18,7 @@ basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2017/12/18a";
+basic_robot.version = "2018/02/06a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[
@@ -27,6 +27,8 @@ robot object = object of entity, used to manipulate movements and more
 --]]
 basic_robot.ids = {}; -- stores maxid for each player
 --[name] = {id = .., maxid = .. }, current id for robot controller, how many robot ids player can use
+
+basic_robot.virtual_players = {}; -- this way robot can interact with the world as "player" TODO
 
 basic_robot.data.listening = {}; -- which robots listen to chat
 dofile(minetest.get_modpath("basic_robot").."/commands.lua")
@@ -524,8 +526,6 @@ function getSandboxEnv (name)
 		
 	end
 
-	
-
 	--special sandbox for admin
 	if authlevel<3 then -- is admin?
 		env._G = env;
@@ -836,7 +836,7 @@ minetest.register_entity("basic_robot:robot",{
 	--textures={"character.png"},
 	
 	visual="cube",
-	textures={"arrow.png","basic_machine_side.png","face.png","basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},
+	textures={"topface.png","legs.png","face.png","face-back.png","left-hand.png","right-hand.png"},
 	
 	visual_size={x=1,y=1},
 	running = 0, -- does it run code or is it idle?	
@@ -994,7 +994,7 @@ local spawn_robot = function(pos,node,ttl)
 			
 			local sec_hash = minetest.get_password_hash("",data.authlevel.. owner .. basic_robot.password) 
 			if meta:get_string("sec_hash")~= sec_hash then
-				minetest.chat_send_all("#ROBOT: " .. name .. " is using fake auth level. dig and place again.")
+				minetest.chat_send_player(owner,"#ROBOT: " .. name .. " is using fake auth level. dig and place again.")
 				return
 			end
 			
@@ -1074,7 +1074,7 @@ local spawn_robot = function(pos,node,ttl)
 	
 	local sec_hash = minetest.get_password_hash("",luaent.authlevel.. owner .. basic_robot.password) 
 	if meta:get_string("sec_hash")~= sec_hash then
-		minetest.chat_send_all("#ROBOT: " .. name .. " is using fake auth level.  dig and place again.")
+		minetest.chat_send_player(owner,"#ROBOT: " .. name .. " is using fake auth level.  dig and place again.")
 		obj:remove();
 		return
 	end
@@ -1270,6 +1270,9 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			
 			if fields.code then 
 				local code = fields.code or "";
+				if string.len(code) > 64000 then 
+					minetest.chat_send_all("#ROBOT: " .. name .. " is spamming with long text.") return 
+				end
 				
 				if meta:get_int("admin") == 1 then
 					local privs = minetest.get_player_privs(name); -- only admin can edit admin robot code
@@ -1537,6 +1540,9 @@ minetest.register_on_player_receive_fields(
 			local name = string.sub(formname, string.len(robot_formname)+1); -- robot name
 			if fields.OK and fields.code then
 				local item = player:get_wielded_item(); --set_wielded_item(item)
+				if string.len(fields.code) > 1000 then 
+					minetest.chat_send_player(player,"#ROBOT: text too long") return 
+				end
 				item:set_metadata(fields.code);
 				player:set_wielded_item(item);
 				if fields.id then 
@@ -1678,6 +1684,9 @@ minetest.register_on_player_receive_fields(
 						local data = itemstack:get_meta():to_table().fields -- 0.4.16, old minetest.deserialize(itemstack:get_metadata()) 
 						if not data then data = {} end
 						local text = fields.book or "";
+						if string.len(text) > 64000 then 
+							minetest.chat_send_all("#ROBOT: " .. sender .. " is spamming with long text.") return 
+						end
 						data.text = text or ""
 						data.title = fields.title or ""
 						data.text_len = #data.text
@@ -1998,3 +2007,5 @@ minetest.register_craft({
 
 minetest.register_privilege("robot", "increased number of allowed active robots")
 minetest.register_privilege("puzzle", "allow player to use puzzle. namespace in robots")
+
+print('[MOD]'.. " basic_robot " .. basic_robot.version .. " loaded.")

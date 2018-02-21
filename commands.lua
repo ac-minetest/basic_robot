@@ -1354,3 +1354,116 @@ basic_robot.commands.puzzle = {
 		return true
 	end,
 }
+
+--   VIRTUAL PLAYER   --
+
+
+local Vplayer = {};
+function Vplayer:new(name) -- constructor
+	if not basic_robot.data[name].obj then return end -- only make it for existing robot
+	if basic_robot.virtual_players[name] then return end -- already exists
+
+	local o = {}
+	setmetatable(o, self)
+	self.__index = self
+	o.obj = basic_robot.data[name].obj;
+	o.data = basic_robot.data[name];
+	
+	local spawnpos = o.data.spawnpos;
+	local meta = minetest.get_meta(spawnpos); if not meta then return end
+	o.inv = meta:get_inventory();
+	
+	basic_robot.virtual_players[name] = o;
+end
+ 
+ -- functions
+ function Vplayer:getpos() return self.obj:getpos() end
+ function Vplayer:remove() end
+ function Vplayer:setpos() end
+ function Vplayer:move_to() end
+ function Vplayer:punch() end
+ function Vplayer:rightlick() end
+ function Vplayer:get_hp() return 20 end
+ function Vplayer:set_hp() return 20 end
+ 
+ function Vplayer:get_inventory() return self.inv end
+ function Vplayer:get_wield_list() return "main" end
+ function Vplayer:get_wield_index() return 1 end
+ function Vplayer:get_wielded_item() return self.inv:get_stack("main", 1) end
+ function Vplayer:set_wielded_item() end
+ function Vplayer:set_armor_groups() end
+ function Vplayer:get_armor_groups() return {fleshy = 100} end
+ function Vplayer:set_animation() end
+ function Vplayer:get_animation() end
+ function Vplayer:set_attach() end
+ function Vplayer:get_attach() end
+ function Vplayer:set_detach() end
+ function Vplayer:set_bone_position() end
+ function Vplayer:get_bone_position() end
+ function Vplayer:set_properties() end
+ function Vplayer:get_properties() end
+ function Vplayer:is_player() return true end
+ function Vplayer:get_nametag_attributes() end
+ function Vplayer:set_nametag_attributes() end
+ 
+ function Vplayer:set_velocity() end
+ function Vplayer:get_velocity() end
+ function Vplayer:set_acceleration() end
+ function Vplayer:get_acceleration() end
+ function Vplayer:set_yaw() end
+ function Vplayer:get_yaw() end
+ function Vplayer:set_texture_mod() end
+ function Vplayer:get_luaentity() end
+ 
+ function Vplayer:get_player_name() return self.data.name end
+ function Vplayer:get_player_velocity() return {x=0,y=0,z=0} end
+ function Vplayer:get_look_dir() return {x=1,y=0,z=0} end
+ function Vplayer:get_look_vertical() return 0 end
+ function Vplayer:get_look_horizontal() return 0 end
+ function Vplayer:set_look_vertical() end
+ function Vplayer:set_look_horizontal() end
+ function Vplayer:get_breath() return 1 end
+ function Vplayer:set_breath() end
+ function Vplayer:set_attribute() end
+ function Vplayer:get_attribute() end
+ function Vplayer:set_inventory_formspec() end
+ function Vplayer:get_inventory_formspec() return "" end
+ function Vplayer:get_player_control() return {} end
+ function Vplayer:get_player_control_bits() return 0 end
+ function Vplayer:set_physics_override() end
+ function Vplayer:get_physics_override() return {} end
+ function Vplayer:hud_add() end
+ function Vplayer:hud_remove() end
+ function Vplayer:hud_change() end
+ function Vplayer:hud_get() end
+ function Vplayer:hud_set_flags() end
+ function Vplayer:hud_get_flags() return {} end
+ function Vplayer:hud_set_hotbar_itemcount() end
+ function Vplayer:hud_get_hotbar_itemcount() return 0 end
+ function Vplayer:hud_set_hotbar_image() end
+ function Vplayer:hud_get_hotbar_image() return "" end
+ function Vplayer:hud_set_hotbar_selected_image() end
+ function Vplayer:hud_get_hotbar_selected_image() return "" end
+ function Vplayer:set_sky() end
+ function Vplayer:get_sky() end
+ function Vplayer:set_clouds() end
+ function Vplayer:get_clouds() end
+ function Vplayer:override_day_night_ratio() end
+ function Vplayer:get_day_night_ratio() end
+ function Vplayer:set_local_animation() end
+ function Vplayer:get_local_animation() end
+ function Vplayer:set_eye_offset() end
+ function Vplayer:get_eye_offset() end
+ 
+  
+ -- code for act borrowed from: https://github.com/minetest-mods/pipeworks/blob/fa4817136c8d1e62dafd6ab694821cba255b5206/wielder.lua, line 372
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
