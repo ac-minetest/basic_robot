@@ -7,7 +7,7 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-basic_robot.password = "password"; -- IMPORTANT: change it before running mod, password used for authentifications
+basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
@@ -1724,13 +1724,15 @@ end
 -- handle chats
 minetest.register_on_chat_message(
 function(name, message)
+	local hidden = false;
+	if string.sub(message,1,1) == "\\" then hidden = true; message = string.sub(message,2) end
 	local listeners = basic_robot.data.listening;
 	for pname,_ in pairs(listeners) do
 		local data = basic_robot.data[pname];
 		data.listen_msg = message;
 		data.listen_speaker = name;
 	end
-	return false
+	return hidden
 end
 )
 
