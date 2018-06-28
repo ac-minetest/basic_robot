@@ -7,7 +7,8 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
+
+basic_robot.password = "randompassword"; -- IMPORTANT: change it before running mod, password used for authentifications
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
@@ -18,7 +19,7 @@ basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/02/06a";
+basic_robot.version = "2018/06/28a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[
@@ -292,14 +293,15 @@ function getSandboxEnv (name)
 		grab = function(target) return basic_robot.commands.grab(name,target) end,
 		
 		
-		say = function(text, owneronly)
-			if not basic_robot.data[name].quiet_mode and not owneronly then
+		say = function(text, pname)
+			if not basic_robot.data[name].quiet_mode and not pname then
 				minetest.chat_send_all("<robot ".. name .. "> " .. text)
 				if not basic_robot.data[name].allow_spam then 
 					basic_robot.data[name].quiet_mode=true
 				end
 			else
-				minetest.chat_send_player(basic_robot.data[name].owner,"<robot ".. name .. "> " .. text)
+				if not pname then pname = basic_robot.data[name].owner end
+				minetest.chat_send_player(pname,"<robot ".. name .. "> " .. text) -- send chat only to player pname
 			end
 		end,
 		

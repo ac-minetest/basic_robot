@@ -1,5 +1,5 @@
 -- REDSTONE EMULATOR & EDITOR 
---v 10/14a
+--v 06/28/2018a
 
 if not init then
 	local players = find_player(5);
@@ -21,6 +21,9 @@ if not init then
 		inv:set_stack("main", 9, puzzle.ItemStack("basic_robot:button_281 999")) -- NOT 33 = 281
 		inv:set_stack("main", 10, puzzle.ItemStack("basic_robot:button_280 999")) -- diode 175 = 280
 		inv:set_stack("main", 11, puzzle.ItemStack("basic_robot:button_283 999")) -- platform 22 = 283
+		inv:set_stack("main", 12, puzzle.ItemStack("basic_robot:button_284 999")) -- giver 23 150/284 
+		inv:set_stack("main", 13, puzzle.ItemStack("basic_robot:button_285 999")) -- checker 24 151/285
+
 		
 		local round = math.floor; protector_position = function(pos) local r = 32;local ry = 2*r; return {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry,z=round(pos.z/r+0.5)*r}; end
 		local spawnblock = protector_position(self.spawnpos())
@@ -42,18 +45,22 @@ if not init then
 	
 	TTL = 16 -- signal propagates so many steps before dissipate
 	--self.label(colorize("red","REDSTONE")..colorize("yellow","EMULATOR"))
-
+	opcount = 0;
 	
     -- DEFINITIONS OF BLOCKS THAT CAN BE ACTIVATED 
 	toggle_button_action = function(mode,pos,ttl) -- SIMPLE TOGGLE BUTTONS - SWITCH
 		if not ttl or ttl <=0 then return end
 		if mode == 1 then -- turn on
 			puzzle.set_node(pos,{name = "basic_robot:button_274"})
-			local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+			local meta = puzzle.get_meta(pos); 
+			if not meta then return end
+			local n = meta:get_int("n");
 			for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 		else -- turn off
 			puzzle.set_node(pos,{name = "basic_robot:button_273"})
-			local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+			local meta = puzzle.get_meta(pos); 
+			if not meta then return end
+			local n = meta:get_int("n");
 			for i = 1,n do activate(0,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 		end
 	end
@@ -63,7 +70,9 @@ if not init then
 		if not ttl or ttl <=0 then return end
 		if mode == 0 then return end
 		puzzle.set_node(pos,{name = "basic_robot:button_276"})
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos); 
+		if not meta then return end
+		local n = meta:get_int("n");
 		
 		minetest.after(1, function() 
 			puzzle.set_node(pos,{name = "basic_robot:button_275"})
@@ -72,11 +81,44 @@ if not init then
 		for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 	end
 	
+	giver_action = function(mode,pos,ttl) 	-- GIVER: give block below it to player and activate targets
+		local nodename = puzzle.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name;
+		if nodename == "air" then return end
+		local objects =  minetest.get_objects_inside_radius(pos, 5);local player1;
+		for _,obj in pairs(objects) do if obj:is_player() then player1 = obj; break end end
+		if player1 then
+			player1:get_inventory():add_item("main", puzzle.ItemStack(nodename))
+			local meta = puzzle.get_meta(pos); 
+			if not meta then return end
+			local n = meta:get_int("n");
+			for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
+		end
+	end
+	
+	checker_action = function(mode,pos,ttl) 	-- CHECKER: check if player has block below it, then remove block from player and activate targets
+		local nodename = puzzle.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name;
+		if nodename == air then return end
+		local objects =  minetest.get_objects_inside_radius(pos, 5);local player1;
+		for _,obj in pairs(objects) do if obj:is_player() then player1 = obj; break end end
+		if player1 then
+			local inv = player1:get_inventory();
+			if inv:contains_item("main", puzzle.ItemStack(nodename)) then
+				inv:remove_item("main",puzzle.ItemStack(nodename))
+				local meta = puzzle.get_meta(pos);
+				if not meta then return end
+				local n = meta:get_int("n");
+				for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
+			end
+		end
+	end
+	
 	equalizer_action = function(mode,pos,ttl) -- CHECK NODES AT TARGET1,TARGET2. IF EQUAL ACTIVATE TARGET3,TARGET4,...
 		if not ttl or ttl <=0 then return end
 		if mode == 0 then return end
 		
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos); 
+		if not meta then return end
+		local n = meta:get_int("n");
 		local node1 = puzzle.get_node({x=meta:get_int("x1")+pos.x,y=meta:get_int("y1")+pos.y,z=meta:get_int("z1")+pos.z}).name
 		local node2 = puzzle.get_node({x=meta:get_int("x2")+pos.x,y=meta:get_int("y2")+pos.y,z=meta:get_int("z2")+pos.z}).name
 		
@@ -90,8 +132,10 @@ if not init then
 	
 	delayer_action = function(mode,pos,ttl) -- DELAY FORWARD SIGNAL, delay determined by distance of target1 from delayer ( in seconds)
 		if not ttl or ttl <=0 then return end
-		
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+
+		local n = meta:get_int("n");
 		local pos1 = {x=meta:get_int("x1"),y=meta:get_int("y1"),z=meta:get_int("z1")}
 		local  delay = math.sqrt(pos1.x^2+pos1.y^2+pos1.z^2);
 		
@@ -109,13 +153,17 @@ if not init then
 	diode_action = function(mode,pos,ttl) -- ONLY pass through ON signal
 		if not ttl or ttl <=0 then return end
 		if mode ~= 1 then return end
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+		local n = meta:get_int("n");
 		for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 	end
 	
 	not_action = function(mode,pos,ttl) -- negate signal: 0 <-> 1
 		if not ttl or ttl <=0 then return end
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+		local n = meta:get_int("n");
 		for i = 1,n do activate(1-mode,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 	end
 	
@@ -123,7 +171,9 @@ if not init then
 		if not ttl or ttl <=0 then return end
 		if mode == 0 then return end
 	
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+		local n = meta:get_int("n");
 		if n ~= 3 then say("#setter: error, needs to be set with 3 links"); return end
 		local node1 = puzzle.get_node({x=meta:get_int("x1")+pos.x,y=meta:get_int("y1")+pos.y,z=meta:get_int("z1")+pos.z})
 		local pos1 = {x=meta:get_int("x2")+pos.x,y=meta:get_int("y2")+pos.y,z=meta:get_int("z2")+pos.z}
@@ -150,7 +200,9 @@ if not init then
 		if not ttl or ttl <=0 then return end
 		--if mode == 0 then return end
 	
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+		local n = meta:get_int("n");
 		if n < 1 or n>2 then say("#piston: error, needs to be set with at least link and most two"); return end
 		local pos1 = {x=meta:get_int("x1")+pos.x,y=meta:get_int("y1")+pos.y,z=meta:get_int("z1")+pos.z}
 
@@ -184,7 +236,9 @@ if not init then
 	platform_action = function(mode,pos,ttl) -- SPAWN MOVING PLATFORM
 		
 		if mode~=1 then return end
-		local meta = puzzle.get_meta(pos); local n = meta:get_int("n");
+		local meta = puzzle.get_meta(pos);
+		if not meta then return end
+		local n = meta:get_int("n");
 		if n ~= 2 then say("#platform: error, needs to be set  with 2 targets"); return end
 		local pos1 = {x=meta:get_int("x1")+pos.x,y=meta:get_int("y1")+pos.y,z=meta:get_int("z1")+pos.z}
 		local pos2 = {x=meta:get_int("x2")+pos.x,y=meta:get_int("y2")+pos.y,z=meta:get_int("z2")+pos.z}
@@ -214,6 +268,9 @@ if not init then
 		if not ttl or ttl <=0 then return end
 		local nodename = puzzle.get_node(pos).name;
 		local active_element = active_elements[nodename];
+		opcount = opcount + 1
+		if opcount > 64 then say("#puzzle error: opcount 64 exceeded. too many active connections."); error("#puzzle: abort") end
+		
 		if active_element then 
 			active_element(mode,pos,ttl-1) 
 		else -- try mesecons activate
@@ -239,10 +296,9 @@ if not init then
 	interactive_elements = {
 		[275] = {button_action,1}, -- BUTTON, 1 means it activates(ON) on punch
 		[273] = {toggle_button_action,1}, -- TOGGLE BUTTON_OFF
-		[274] = {toggle_button_action,0} -- TOGGLE BUTTON_ON, 0 means it deactivates
-		--TODO
-		-- inventory checker(taker) : basic_robot:button_63 -> if player has stuff it will activate items after punch
-		-- inventory give: give item that is at position1 and activate selected machine at position2
+		[274] = {toggle_button_action,0}, -- TOGGLE BUTTON_ON, 0 means it deactivates
+		[284] = {giver_action,0}, -- GIVER: give player item below it when activated and activate targets after that
+		[285] = {checker_action,0}, -- CHECKER: check if player has block below it in inventory, remove it and activate targets after that
 	}
 	
 	-- THESE CAN BE ACTIVATED WITH SIGNAL
@@ -271,13 +327,16 @@ if not init then
 		["basic_robot:button_275"] = "button: now select one or more targets", -- button
 		["basic_robot:button_273"] = "switch: now select one or more targets", -- switch OFF
 		["basic_robot:button_274"] = "switch: now select one or more targets", -- switch ON
-		["basic_robot:button_278"] = "setter: set block at target region {target2,target3} to block at target1", -- equalizer
+		["basic_robot:button_278"] = "setter: target1 defines what material wall will use, target2/3 defines where wall will be", -- setter
 		["basic_robot:button_277"] = "equalizer: target1 and target2 are for comparison, other targets are activated", -- equalizer
 		["basic_robot:button_279"] = "piston: push block at target1 in direction away from piston", -- equalizer
 		["basic_robot:button_283"] = "platform: select target1 to set origin, target2 for direction", -- PLATFORM
 		["basic_robot:button_282"] = "delayer: distance from delayer to target1 determines delay", -- delayer
 		["basic_robot:button_280"] = "diode: only pass through ON signal",  -- DIODE
 		["basic_robot:button_281"] = "NOT gate: negates the signal", -- NOT
+
+		["basic_robot:button_284"] = "GIVER: give player item below it when activated and activate targets after that",
+		["basic_robot:button_285"] = "CHECKER: check if player has block below it in inventory, remove it and activate targets after that",
 	}
 		
 	linker_use = function(pos)
@@ -386,7 +445,7 @@ if not init then
 	
 end
 
-
+opcount = 0
 event = keyboard.get() --  handle keyboard
 if event then
 	if event.type == 0 then -- EDITING

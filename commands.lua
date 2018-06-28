@@ -1320,7 +1320,9 @@ basic_robot.commands.puzzle = {
 		if minetest.is_protected(pos,data.owner) then return end
 		if not is_same_block(pos,spos) then return end
 		if minetest.get_node(pos).name == "basic_robot:spawner" then return end
-		return minetest.get_meta(pos)
+		local meta = minetest.get_meta(pos);
+		if not meta then error("get_meta in puzzle returned nil"); return end
+		return meta
 	end,
 	get_gametime = function() return minetest.get_gametime() end,
 	
