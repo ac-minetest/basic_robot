@@ -549,13 +549,11 @@ end
 check_code = function(code)
   --"while ", "for ", "do ","goto ", 
   local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall","\\\""}
-	
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
     end
   end
-
 end
 
 
@@ -659,7 +657,15 @@ preprocess_code = function(script)
 				found = true;
 			end
 		end
-		--minetest.chat_send_all("code rem " .. string.sub(script,i1))
+		
+		i2=string.find (script, "pause()", i1) -- fix pause ?
+		if i2 then
+			if not is_inside_string(i2,script) then
+				script =  script.sub(script,1, i2-1) .. "_ccounter = 0;" .. script.sub(script,i2)
+				i1=i2+14+7; -- insert + skip _ccounter & pause
+				found = true;
+			end
+		end
 		
 	end
 	
@@ -691,6 +697,8 @@ local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCo
 	if basic_robot.data[name].authlevel<3 then -- not admin
 		err = check_code(script);
 		script = preprocess_code(script);
+	elseif cor then
+		script = preprocess_code(script); --  coroutines need ccounter reset or 'infinite loops' fail after limit
 	end
 	if err then return err end
 	
@@ -721,7 +729,7 @@ local function runSandbox( name)
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
-	cor = basic_robot.data[name].cor;
+	local cor = data.cor;
 	if cor then -- coroutine!
 		local err,ret
 		err,ret = coroutine.resume(cor)
