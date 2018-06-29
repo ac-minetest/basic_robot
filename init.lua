@@ -7,8 +7,7 @@ basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-
-basic_robot.password = "randompassword"; -- IMPORTANT: change it before running mod, password used for authentifications
+basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
@@ -19,7 +18,7 @@ basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/06/28a";
+basic_robot.version = "2018/06/29a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[
@@ -78,6 +77,11 @@ function getSandboxEnv (name)
 		
 		craft = function(item, idx,mode)
 			return commands.craft(item, mode, idx, name)
+		end,
+		
+		pause = function() -- pause coroutine
+			if not basic_robot.data[name].cor then error("you must start program with '--coroutine' to use pause()") return end
+			coroutine.yield()
 		end,
 		
 		self = {
@@ -680,8 +684,10 @@ local function initSandbox (name)
 end
 
 local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCode 3. runSandbox
-	
 	local err;
+	local cor = false;
+	if string.sub(script,1,11) == "--coroutine" then cor = true end
+	
 	if basic_robot.data[name].authlevel<3 then -- not admin
 		err = check_code(script);
 		script = preprocess_code(script);
@@ -691,6 +697,12 @@ local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCo
 	local bytecode, err = CompileCode ( script );
 	if err then return err end
 	basic_robot.data[name].bytecode = bytecode;
+	
+	if cor then -- create coroutine if requested
+		basic_robot.data[name].cor = coroutine.create(bytecode)
+	else 
+		basic_robot.data[name].cor = nil
+	end
 	return nil
 end
 
@@ -708,6 +720,14 @@ local function runSandbox( name)
 	data.operations = basic_robot.maxoperations;
 	
 	setfenv( ScriptFunc, data.sandbox )
+	
+	cor = basic_robot.data[name].cor;
+	if cor then -- coroutine!
+		local err,ret
+		err,ret = coroutine.resume(cor)
+		if err then return err end
+		return nil
+	end
 	
 	local Result, RuntimeError = pcall( ScriptFunc )
 	if RuntimeError then
