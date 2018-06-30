@@ -23,10 +23,10 @@
 		imax = 0; jmax = 0
 		
 		sokoban.load=0;sokoban.playername =""; sokoban.pos = {};
-		SOKOBAN_WALL = "default:brick"
-		SOKOBAN_FLOOR = "default:stonebrick"
-		SOKOBAN_GOAL = "default:diamondblock"
-		SOKOBAN_BOX = "basic_robot:button8080FF"
+		SOKOBAN_WALL = "moreblocks:cactus_brick"
+		SOKOBAN_FLOOR = "default:desert_sandstone"
+		SOKOBAN_GOAL = "moreblocks:wood_tile_center"
+		SOKOBAN_BOX = "basic_robot:buttonFFFFFF"
 		
 		load_level = function(lvl)
 			
@@ -89,6 +89,18 @@
 			file:close();		
 		end
 		
+		clear_game = function()
+			local pos = self.spawnpos(); pos.x=pos.x+1;pos.y=pos.y+1;
+			for i = 1, 20 do
+				for j = 1,20 do
+					local node = minetest.get_node({x=pos.x+i,y=pos.y-1,z=pos.z+j}).name
+					if node ~= "default:desert_sandstone" then minetest.set_node({x=pos.x+i,y=pos.y-1,z=pos.z+j}, {name = "default:desert_sandstone"}) end
+					node = minetest.get_node({x=pos.x+i,y=pos.y,z=pos.z+j}).name
+					if node ~= "air" then minetest.set_node({x=pos.x+i,y=pos.y,z=pos.z+j}, {name = "air"}) end
+				end
+			end
+		end
+		
 	
 	end
 
@@ -99,6 +111,7 @@ if state == 1 then
 		--say(serialize(fields))
 		
 		if fields.LVL then
+			clear_game()
 			load_level((tonumber(fields.LVL) or 1)-1)
 			state = 0
 			self.label("stand close to blue box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all boxes pushed on diamond blocks")
@@ -107,7 +120,7 @@ if state == 1 then
 else
 	
 	local ppos = player_:getpos()
-	if math.abs(ppos.y-sokoban.pos.y)~= 0.5 then say(colorize("red", "SOKOBAN: " .. name ..  " QUITS ! ")); 
+	if math.abs(ppos.y-sokoban.pos.y)~= 0.5 then minetest.chat_send_player(name,colorize("red", "SOKOBAN: " .. name ..  " QUITS ! ")); 
 	player_:set_eye_offset({x=0,y=0,z=0},{x=0,y=0,z=0});player_:set_physics_override({jump=1});	self.remove() end
 	
 	event = keyboard.get();

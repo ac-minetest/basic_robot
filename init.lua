@@ -18,7 +18,7 @@ basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/06/29a";
+basic_robot.version = "2018/06/30a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[

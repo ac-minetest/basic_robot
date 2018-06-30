@@ -2,17 +2,24 @@
 --https://en.wikipedia.org/wiki/Black_Box_(game)
 
 if not data then
-	m=8;n=8;turn = 0; 
-	attempts = 1;
+	m=16;n=16;
+	atoms = 32
+	attempts = 1;turn = 0; 
+	spawnpos = self.spawnpos();	spawnpos.x = spawnpos.x-m/2; spawnpos.y = spawnpos.y+2; spawnpos.z = spawnpos.z-n/2 
+	
+	local players = find_player(5,spawnpos);
+	if not player then self.remove() else pname = players[1] end
 	
 	self.spam(1);t0 = _G.minetest.get_gametime();
-	spawnpos = self.spawnpos() 
 	data = {};
 	for i = 1,m do data[i]={}; for j = 1,n do data[i][j]=0 end end
 
-	for i=1,4 do -- put in 4 atoms randomly
+	for i=1,atoms do -- put in atoms randomly
 	  data[math.random(m)][math.random(n)] = 1
 	end
+	
+	atoms = 0
+	for i = 1,m do for j = 1,n do if data[i][j]==1 then atoms = atoms + 1 end end end
 	
 	render_board = function(mode) -- mode 0 : render without solution, 1: render solution
 		for i = 1,m do for j = 1,n do -- render game
@@ -95,7 +102,7 @@ if not data then
 						if result<=1 then
 							keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},6); -- immediate bounce off
 						else
-							local nodename = "default:obsidian_letter_"..string.char(97+count) .. "u";
+							local nodename = "basic_robot:button_"..(65+count);
 							_G.minetest.set_node(
 							{x=spawnpos.x+out[1],y=spawnpos.y+1,z=spawnpos.z+out[2]},
 							{name = nodename, param2 = 1})
@@ -167,7 +174,9 @@ if not data then
 	
 	--render board
 	render_board(0)
-	keyboard.set({x=spawnpos.x,y=spawnpos.y,z=spawnpos.z-1},5)
+	keyboard.set({x=spawnpos.x,y=spawnpos.y,z=spawnpos.z-1},4)
+	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z-1},5)
+	self.label("BLACKBOX with " .. atoms .. " atoms")
 	
 end
 
@@ -175,13 +184,17 @@ event = keyboard.get();
 if event then
 	local x = event.x - spawnpos.x;local y = event.y - spawnpos.y;local z = event.z - spawnpos.z;
 	if x<1 or x>m or z<1 or z>n then
-		if event.type == 5 then
+		if event.type == 4 then
 			if check_solution() then
 				say("#BLACKBOX : CONGRATULATIONS! " .. event.puncher .. " found all atoms after " .. attempts .. " tries."); self.remove()
 			else
 				say("#BLACKBOX : " .. event.puncher .. " failed to detect atoms after " .. attempts  .. " attempts.")
 				attempts = attempts+1
 			end
+		elseif event.type == 5 then
+			say("#BLACKBOX : DISPLAYING SOLUTION",pname)
+			render_board(1)
+			self.remove()
 		end
 	else -- interior punch
 			nodetype = 2;

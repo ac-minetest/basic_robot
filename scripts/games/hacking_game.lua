@@ -58,7 +58,7 @@ if not init then
 	local players = find_player(4);
 	if not players then say("#fallout hacking game: no players") self.remove() end
 	pname = players[1];
-	say("#fallout hacking game, player " .. pname)
+	minetest.chat_send_player(pname,"#fallout hacking game, player " .. pname)
 
 	--if rom.data[pname] then say("password is locked out!") self.remove() end
 	
@@ -77,8 +77,8 @@ sender,fields = self.read_form()
 				if selected>0 then
 					guesses = guesses + 1
 					if selected == correct then 
-						say("password " .. passlist[correct]  .. " is correct! " .. guesses .. " guesses.")
-						self.show_form(pname, "size[1,1] label[0,0.5;" .. minetest.colorize("lawngreen", "ACCESS GRANTED") .. "]")
+						minetest.chat_send_player(pname,"password " .. passlist[correct]  .. " is correct! " .. guesses .. " guesses.")
+						self.show_form(pname, "size[2,1] label[0,0.5;" .. minetest.colorize("lawngreen", "ACCESS GRANTED") .. "]")
 						self.remove()
 						--correct: do something with player
 					else
@@ -89,7 +89,7 @@ sender,fields = self.read_form()
 					if guesses>=max_guesses then 
 						msg = minetest.colorize("red","A C C E S S  D E N I E D!")
 						self.show_form(pname, get_form())
-						say("too many false guesses. password locked out!") rom.data[pname] = 1; self.remove()
+						minetest.chat_send_player(pname,"too many false guesses. password locked out!") rom.data[pname] = 1; self.remove()
 					end					
 				end
 		if fields.quit then self.remove() end

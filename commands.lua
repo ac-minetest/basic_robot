@@ -740,7 +740,7 @@ basic_robot.commands.craft = function(item, mode, idx, name)
 	local cache = basic_robot.commands.craftcache[name];
 	if not cache then basic_robot.commands.craftcache[name] = {}; cache = basic_robot.commands.craftcache[name] end
 	local itemlist = {}; local output = "";
-	if cache.item == item then-- read cache
+	if cache.item == item and cache.idx == idx then -- read cache
 		itemlist = cache.itemlist;
 		output = cache.output;
 	else
@@ -759,6 +759,7 @@ basic_robot.commands.craft = function(item, mode, idx, name)
 			itemlist[item]=(itemlist[item] or 0)+1;
 		end
 		cache.item = item;
+		cache.idx = idx;
 		cache.itemlist = itemlist;
 		cache.output = output;
 
@@ -866,7 +867,7 @@ basic_robot.technic = { -- data cache
 	
 	compressor_recipes = {  --[in] ={fuel cost, out, quantity of material required for processing}
 		["default:snow"] = {1,"default:ice"},
-		["default:coalblock"] = {16,"default:diamond"},
+		["default:coalblock"] = {41,"default:diamond"}, -- to smelt diamond dust to diamond need 25 coal + 16 for grinder
 	},
 }
 

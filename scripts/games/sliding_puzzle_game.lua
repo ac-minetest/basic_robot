@@ -5,6 +5,12 @@ if not init then
 	board = {};
 	size = 3;
 	
+	local players = find_player(4);
+	if not players then say("#sliding puzzle game: no players") self.remove() end
+	name = players[1];
+	
+	minetest.chat_send_player(name, "#SLIDING GAME: try to sort numbers in increasing order, starting from top left")
+	
 	create_board = function(n)
 		local k = 0;
 		local ret = scramble(n*n, os.time())
@@ -17,12 +23,24 @@ if not init then
 		end
 		board[math.random(n)][math.random(n)] = 0
 	end
-	
+		
 	render_board = function()
 		local n = #board;
 		for i = 1,n do
 			for j = 1,n do
 				keyboard.set({x=spos.x+i, y = spos.y, z=spos.z+j}, board[i][j]) 
+			end
+		end
+	end
+	
+	check_score = function() -- check how many places are increasing in order, starting top left
+		local n = #board;
+		local cmax = 0;
+		local score = 0;
+		for j = n,1,-1 do
+			for i = 1,n do
+				local b = board[i][j];
+				if b==0 or b<cmax then return score else score = score +1 cmax = b end
 			end
 		end
 	end
@@ -68,6 +86,15 @@ if event and event.y == spos.y then
 			board[x][z] = board[i][j] 
 			board[i][j]	= tmp;
 			keyboard.set({x=spos.x+i, y = spos.y, z=spos.z+j}, tmp) 
+		end
+		local score = check_score()
+		self.label("score : " .. score)
+		if score >= size*size-2 then
+			minetest.chat_send_player(name, "CONGRATULATIONS! YOU SOLVED PUZZLE. REWARD WAS DROPPED ON TOP OF ROBOT.") 
+			pos = self.pos(); pos.y = pos.y+2;
+			reward = "default:gold_ingot"
+			minetest.add_item(pos, _G.ItemStack(reward))
+			self.remove()
 		end
 	end
 

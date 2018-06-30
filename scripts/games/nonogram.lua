@@ -23,7 +23,7 @@ if not grid then
 	end
 	
 	if not rom.score then _,rom.score = book.read(1) end
-	--rom.score = "0 - 999 1 - 999 2 - 999 3 - 999 4 - 999 5 - 999" -- default
+	if not rom.score then rom.score = "0 - 999 1 - 999 2 - 999 3 - 999 4 - 999 5 - 999" end
 	highscore = get_score_from_string(rom.score)
 	--self.label(string.gsub(_G.dump(highscore), "\n",""))
 	
@@ -179,6 +179,11 @@ if not grid then
 	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z},4) -- game check button
 	keyboard.set({x=spawnpos.x+2,y=spawnpos.y,z=spawnpos.z},5) -- game check button
 
+	local players = find_player(4,spawnpos)
+	if not players then error("minesweeper: no players near") end
+	local pname = players[1];
+	
+	
 	--self.label()
 	
 	--self.label(string.gsub(_G.dump(read_field()),"\n","") )
@@ -191,7 +196,7 @@ if not grid then
 		elseif difficulty == 2 then limit = 80 reward = 7
 		elseif difficulty <= 1 then limit = 70 reward = 6
 	end
-	say("nonogram difficulty " .. difficulty .. ". you will get " .. reward .. " gold if you solve it in faster than " .. limit .."s" ..
+	minetest.chat_send_player(pname, "nonogram difficulty " .. difficulty .. ". you will get " .. reward .. " gold if you solve it in faster than " .. limit .."s" ..
 	". Current record " .. highscore[difficulty][2] .. " by " .. highscore[difficulty][1])
 	
 end
@@ -216,7 +221,7 @@ if event then
 				
 				-- highscore
 				if t<highscore[difficulty][2] then 
-					say("new record! old record " .. highscore[difficulty][2] .. "s by " .. highscore[difficulty][1])
+					say("nonogram: new record " .. t .. " s ! old record " .. highscore[difficulty][2] .. "s by " .. highscore[difficulty][1])
 					highscore[difficulty] = {event.puncher, t}
 					rom.score = get_score_string(highscore)
 					book.write(1,"scores", rom.score)
@@ -229,13 +234,13 @@ if event then
 						inv:add_item("main",_G.ItemStack("default:gold_ingot " .. reward))
 					end
 				end
-				say(msg)
+				minetest.chat_send_player(event.puncher,msg)
 				
 				self.remove() 
 				
 			else self.label("FAIL") end
 		elseif event.x == spawnpos.x+2 then -- solve
-			say("you gave up on game, displaying solution")
+			minetest.chat_send_player(event.puncher,"you gave up on game, displaying solution")
 			for i=1,n do
 				for j =1,n do
 					local typ;
