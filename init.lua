@@ -732,7 +732,7 @@ local function runSandbox( name)
 	local cor = data.cor;
 	if cor then -- coroutine!
 		local err,ret
-		err,ret = coroutine.resume(cor)
+		ret,err = coroutine.resume(cor)
 		if err then return err end
 		return nil
 	end
@@ -1571,7 +1571,7 @@ minetest.register_on_player_receive_fields(
 			if fields.OK and fields.code then
 				local item = player:get_wielded_item(); --set_wielded_item(item)
 				if string.len(fields.code) > 1000 then 
-					minetest.chat_send_player(player,"#ROBOT: text too long") return 
+					minetest.chat_send_player(player:get_player_name(),"#ROBOT: text too long") return 
 				end
 				item:set_metadata(fields.code);
 				player:set_wielded_item(item);

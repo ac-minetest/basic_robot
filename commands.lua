@@ -1210,10 +1210,10 @@ end
 
 local cmd_get_player = function(data,pname) -- return player for further manipulation
 	local player = minetest.get_player_by_name(pname)
-	if not player then return end
+	if not player then error("player does not exist"); return end
 	local spos = data.spawnpos;
 	local ppos =  player:getpos();
-	if not is_same_block(ppos,spos) then return end
+	if not is_same_block(ppos,spos) then error("can not get player in another protection zone") return end
 	return player	
 end
 
@@ -1222,7 +1222,7 @@ local cmd_get_player_inv = function(data,pname)
 	if not player then return end
 	local spos = data.spawnpos;
 	local ppos =  player:getpos();
-	if not is_same_block(ppos,spos) then return end
+	if not is_same_block(ppos,spos) then error("can not get player in another protection zone") return end
 	return player:get_inventory();
 end
 

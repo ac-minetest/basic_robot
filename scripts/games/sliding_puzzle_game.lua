@@ -1,10 +1,11 @@
 -- sliding unscramble game by rnd, made in 20 minutes
 if not init then
+	reward = "default:gold_ingot"
+	size = 3;
+
 	init = true
 	spos = self.spawnpos(); spos.y = spos.y + 1
 	board = {};
-	size = 3;
-	
 	local players = find_player(4);
 	if not players then say("#sliding puzzle game: no players") self.remove() end
 	name = players[1];
@@ -92,7 +93,6 @@ if event and event.y == spos.y then
 		if score >= size*size-2 then
 			minetest.chat_send_player(name, "CONGRATULATIONS! YOU SOLVED PUZZLE. REWARD WAS DROPPED ON TOP OF ROBOT.") 
 			pos = self.pos(); pos.y = pos.y+2;
-			reward = "default:gold_ingot"
 			minetest.add_item(pos, _G.ItemStack(reward))
 			self.remove()
 		end
