@@ -1295,7 +1295,6 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		if minetest.is_protected(pos,name) then return end
 		
 		if fields.OK then
-			
 			local meta = minetest.get_meta(pos);
 			
 			if fields.code then 
@@ -1304,7 +1303,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 					minetest.chat_send_all("#ROBOT: " .. name .. " is spamming with long text.") return 
 				end
 				
-				if meta:get_int("admin") == 1 then
+				if meta:get_int("authlevel") > 1 and name ~= meta:get_string("owner")then
 					local privs = minetest.get_player_privs(name); -- only admin can edit admin robot code
 					if not privs.privs then
 						return
