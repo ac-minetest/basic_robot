@@ -80,6 +80,8 @@ basic_robot.commands.move = function(name,dir)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)
 	
+	check_operations(name,0.25,true)
+	
 	-- can move through walkable nodes
 	if minetest.registered_nodes[minetest.get_node(pos).name].walkable then return end
 	-- up; no levitation!
@@ -168,6 +170,8 @@ end
 
 
 basic_robot.commands.insert_item = function(name,item, inventory,dir)  
+	
+	check_operations(name,0.4,true)
 	local obj = basic_robot.data[name].obj;
 	local tpos = pos_in_dir(obj, dir); -- position of target block
 	local luaent = obj:get_luaentity();
@@ -337,6 +341,8 @@ basic_robot.commands.write_text = function(name,dir,text)
 end
 
 basic_robot.commands.place = function(name,nodename, param2,dir)
+	
+	check_operations(name,0.4,true)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
@@ -493,6 +499,7 @@ local render_text = function(text,linesize)
 		local count = math.floor(string.len(text)/linesize)+1;
 		local width = 18; local height = 24;
 		local tex = "";
+		local ret = {};
 		local y = 0; local x=0;
 		for i=1,string.len(text) do
 			local cb = string.byte(text,i); 
@@ -501,26 +508,26 @@ local render_text = function(text,linesize)
 				y=y+1; x=0 
 			else 
 				c = string.format("%03d",cb)..".png" 
-				tex = tex .. ":" .. (x*width) .. "," .. (y*height) .. "=" .. c;
+				ret[#ret+1] = ":" .. (x*width) .. "," .. (y*height) .. "=" .. c;
+				--tex = tex .. ":" .. (x*width) .. "," .. (y*height) .. "=" .. c;
 				if x==linesize-1 then y=y+1 x=0 else x=x+1 end
 			end
 		end
 		local background = "(black_screen.png^[resize:"..(linesize*width).. "x".. (linesize*height) ..")";
-		tex =  "([combine:"..(linesize*width).."x"..(linesize*height)..tex..")";
-		tex = background .. "^" ..  tex;
-		return tex;
+		--tex =  "([combine:"..(linesize*width).."x"..(linesize*height)..tex..")";
+		return background .. "^" .."([combine:"..(linesize*width).."x"..(linesize*height)..table.concat(ret,"")..")";
 end
 
 
 basic_robot.commands.display_text = function(obj,text,linesize,size)
-	if not linesize or linesize<1 then linesize = 20 end
+	if not linesize or linesize<1 then linesize = 20 elseif linesize>40 then linesize = 40 end
 	if size and size<=0 then size = 1 end
 	
 	if string.len(text)>linesize*linesize then text = string.sub(text,1,linesize*linesize) end
 	local tex = render_text(text,linesize);
 	if not size then return tex end
 	
-	if string.len(tex)<60000 then
+	if string.len(tex)<=1600 then
 		obj:set_properties({textures={"arrow.png","basic_machine_side.png",tex,"basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},visual_size = {x=size,y=size}})
 	else
 		self.label("error: string too long")
