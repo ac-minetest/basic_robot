@@ -9,11 +9,14 @@ basic_robot.advanced_count = 16 -- how many robots player with robot privs can h
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
 basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
 
+local admin_bot_pos = {x=0,y=0,z=0} -- position of admin robot spawner that will be run automatically on server start
+
+basic_robot.maxoperations = 10; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
+basic_robot.dig_require_energy = true; -- does robot require energy to dig?
+
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
 }
-basic_robot.maxoperations = 2; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
-basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 ----------------------
 
 basic_robot.http_api = minetest.request_http_api(); 
@@ -88,6 +91,7 @@ function getSandboxEnv (name)
 			pos = function() return basic_robot.data[name].obj:getpos() end,
 			spawnpos = function() local pos = basic_robot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
 			name = function() return name end,
+			operations = function() return basic_robot.data[name].operations end,
 			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
 			
 			set_properties = function(properties)
@@ -1135,6 +1139,15 @@ local spawn_robot = function(pos,node,ttl)
 	self.running = 1
 end
 
+
+--admin robot that starts automatically after server start
+minetest.after(10, function() 
+	minetest.forceload_block(admin_bot_pos,true) -- load map position
+	spawn_robot(admin_bot_pos,node,1)
+	print("[BASIC_ROBOT] admin bot started.")
+end)
+	
+
 local despawn_robot = function(pos)
 	
 	local meta = minetest.get_meta(pos);
@@ -1388,6 +1401,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  sender,mail = self.read_mail() reads mail, if any\n" ..
 			"  self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
 			"  self.name() returns robot name\n"..
+			"  self.operations() returns remaining robot operations\n"..
 			"  self.set_properties({textures=.., visual=..,visual_size=.., , ) sets visual appearance\n"..
 			"  set_animation(anim_start,anim_end,anim_speed,anim_stand_start) set mesh animation \n"..
 			"  self.spam(0/1) (dis)enable message repeat to all\n"..
@@ -1539,6 +1553,17 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 	end
 
 -- handle form: when rightclicking robot entity, remote controller
+
+
+-- minetest.register_on_player_receive_fields(
+	-- function(player, formname, fields)
+		-- local gui = robogui[formname];
+		-- if gui then gui.response(player,formname,fields) end
+	-- end
+-- )
+
+
+
 minetest.register_on_player_receive_fields(
 	function(player, formname, fields)
 		

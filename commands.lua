@@ -68,7 +68,7 @@ local check_operations = function(name, amount, quit)
 			data.operations = operations 
 		else 
 			if quit then
-				error("robot out of available operations in one step."); return false
+				error("Robot out of available operations in one step (1s). View available operations with self.operations() and check help to see how much operations each action requires."); return false
 			end
 			return false
 		end 
@@ -77,11 +77,11 @@ end
 
 
 basic_robot.commands.move = function(name,dir)
+	
+	check_operations(name,2,true)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)
-	
-	check_operations(name,0.25,true)
-	
+		
 	-- can move through walkable nodes
 	if minetest.registered_nodes[minetest.get_node(pos).name].walkable then return end
 	-- up; no levitation!
@@ -122,7 +122,7 @@ basic_robot.digcosts = { -- 1 energy = 1 coal
 basic_robot.commands.dig = function(name,dir)
 	
 	local energy = 0;
-	check_operations(name,2,true)
+	check_operations(name,6,true)
 	
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
@@ -171,7 +171,7 @@ end
 
 basic_robot.commands.insert_item = function(name,item, inventory,dir)  
 	
-	check_operations(name,0.4,true)
+	check_operations(name,2,true)
 	local obj = basic_robot.data[name].obj;
 	local tpos = pos_in_dir(obj, dir); -- position of target block
 	local luaent = obj:get_luaentity();
@@ -214,6 +214,8 @@ basic_robot.commands.insert_item = function(name,item, inventory,dir)
 end
 
 basic_robot.commands.take_item = function(name,item, inventory,dir)  
+
+	check_operations(name,2,true)
 	local obj = basic_robot.data[name].obj;
 	local tpos = pos_in_dir(obj, dir); -- position of target block
 	local luaent = obj:get_luaentity();
@@ -284,7 +286,8 @@ basic_robot.no_teleport_table = {
 basic_robot.commands.pickup = function(r,name)
 	
 	if r>8 then return false end
-
+	
+	check_operations(name,4,true)
 	local pos = basic_robot.data[name].obj:getpos();
 	local spos = basic_robot.data[name].spawnpos; -- position of spawner block
 	local meta = minetest.get_meta(spos);
@@ -342,7 +345,7 @@ end
 
 basic_robot.commands.place = function(name,nodename, param2,dir)
 	
-	check_operations(name,0.4,true)
+	check_operations(name,2,true)
 	local obj = basic_robot.data[name].obj;
 	local pos = pos_in_dir(obj, dir)	
 	local luaent = obj:get_luaentity();
@@ -386,7 +389,7 @@ end
 basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	
 	local energy = 0;
-	check_operations(name,2,true);
+	check_operations(name,4,true);
 	
 	local reach = 4;
 	local damage = 5;
