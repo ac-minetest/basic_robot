@@ -2,22 +2,22 @@
 
 
 basic_robot = {};
-----  SETTINGS  ------
+------  SETTINGS  --------
 basic_robot.call_limit = 48; -- how many execution calls per script run allowed
 basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
 basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
 
-local admin_bot_pos = {x=0,y=0,z=0} -- position of admin robot spawner that will be run automatically on server start
+basic_robot.admin_bot_pos = {x=0,y=1,z=0} -- position of admin robot spawner that will be run automatically on server start
 
 basic_robot.maxoperations = 10; -- how many operations (dig, place,move,...,generate energy,..) available per run,  0 = unlimited
-basic_robot.dig_require_energy = true; -- does robot require energy to dig?
+basic_robot.dig_require_energy = true; -- does robot require energy to dig stone?
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
 }
-----------------------
+----- END OF SETTINGS ------
 
 basic_robot.http_api = minetest.request_http_api(); 
 
@@ -400,14 +400,14 @@ function getSandboxEnv (name)
 		
 		--_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
 		
-		increase_ccounter = 
-		function() 
-			local _ccounter = basic_robot.data[name].ccounter;
-			if _ccounter > basic_robot.call_limit then
-				error("Execution limit " .. basic_robot.call_limit .. " exceeded");
-			end
-			basic_robot.data[name].ccounter = _ccounter + 1;
-		end,
+		-- increase_ccounter = 
+		-- function() 
+			-- local _ccounter = basic_robot.data[name].ccounter;
+			-- if _ccounter > basic_robot.call_limit then
+				-- error("Execution limit " .. basic_robot.call_limit .. " exceeded");
+			-- end
+			-- basic_robot.data[name].ccounter = _ccounter + 1;
+		-- end,
 	};
 	
 	-- ROBOT FUNCTIONS: move,dig, place,insert,take,check_inventory,activate,read_node,read_text,write_text
@@ -606,6 +606,7 @@ end
 
 is_inside_string = function(strings,pos) -- is position inside one of the strings?
 	local low = 1; local high = #strings;
+	if high == 0 then return false end
 	local mid = high;
 	while high>low+1 do
 		mid = math.floor((low+high)/2)
@@ -1206,9 +1207,10 @@ end
 
 --admin robot that starts automatically after server start
 minetest.after(10, function() 
+	local admin_bot_pos = basic_robot.admin_bot_pos;
 	minetest.forceload_block(admin_bot_pos,true) -- load map position
-	spawn_robot(admin_bot_pos,node,1)
-	print("[BASIC_ROBOT] admin bot started.")
+	spawn_robot(admin_bot_pos,nil,1)
+	print("[BASIC_ROBOT] admin robot at " .. admin_bot_pos.x .. " " .. admin_bot_pos.y .. " " .. admin_bot_pos.z .. " started.")
 end)
 	
 
