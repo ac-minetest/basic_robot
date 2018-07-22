@@ -11,7 +11,7 @@ basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running 
 
 local admin_bot_pos = {x=0,y=0,z=0} -- position of admin robot spawner that will be run automatically on server start
 
-basic_robot.maxoperations = 10; -- how many operations (dig, generate energy,..) available per run,  0 = unlimited
+basic_robot.maxoperations = 10; -- how many operations (dig, place,move,...,generate energy,..) available per run,  0 = unlimited
 basic_robot.dig_require_energy = true; -- does robot require energy to dig?
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
@@ -21,7 +21,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/06/30a";
+basic_robot.version = "2018/07/22a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[
@@ -348,34 +348,8 @@ function getSandboxEnv (name)
 					return
 				end
 			end,
-			
-			run = function(script)
-				if basic_robot.data[name].authlevel < 3 then
-					local err = check_code(script);
-					script = preprocess_code(script);
-					if err then 
-						minetest.chat_send_player(name,"#ROBOT CODE CHECK ERROR : " .. err) 
-						return 
-					end
-				end
-				
-				local ScriptFunc, CompileError = loadstring( script )
-				if CompileError then
-					minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
-					return false
-				end
-			
-				setfenv( ScriptFunc, basic_robot.data[name].sandbox )
-			
-				local Result, RuntimeError = pcall( ScriptFunc );
-				if RuntimeError then
-					minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
-					return false
-				end
-				return true
-			end
 		},
-		
+			
 		rom = basic_robot.data[name].rom,
 		
 		string = {
@@ -490,6 +464,34 @@ function getSandboxEnv (name)
 	end
 			
 	if authlevel>=1 then -- robot privs
+		
+		env.code.run = function(script)
+			if basic_robot.data[name].authlevel < 3 then
+				local err = check_code(script);
+				script = preprocess_code(script);
+				if err then 
+					minetest.chat_send_player(name,"#ROBOT CODE CHECK ERROR : " .. err) 
+					return 
+				end
+			end
+			
+			local ScriptFunc, CompileError = loadstring( script )
+			if CompileError then
+				minetest.chat_send_player(name, "#code.run: compile error " .. CompileError )
+				return false
+			end
+		
+			setfenv( ScriptFunc, basic_robot.data[name].sandbox )
+		
+			local Result, RuntimeError = pcall( ScriptFunc );
+			if RuntimeError then
+				minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
+				return false
+			end
+			return true
+		end
+	
+		
 		env.self.read_form = function()
 			local fields = basic_robot.data[name].read_form;
 			local sender = basic_robot.data[name].form_sender;
@@ -551,8 +553,8 @@ end
 -- code checker
 
 check_code = function(code)
-  --"while ", "for ", "do ","goto ", 
-  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall","\\\""}
+  --"while ", "for ", "do ","goto ",  
+  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall"} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -561,6 +563,59 @@ check_code = function(code)
 end
 
 
+local identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
+
+	local i = 0; local j; local length = string.len(code);
+	local mode = 0; -- 0: not in string, 1: in '...' string, 2: in "..." string, 3. in [==[ ... ]==] string
+	local modes = {
+		{"'","'"},
+		{"\"","\""},
+		{"%[=*%[","%]=*%]"}
+	}
+	local ret = {}
+	while i < length do
+		i=i+1
+	
+		local jmin = length+1;
+		if mode == 0 then -- not yet inside string
+			for k=1,#modes do
+				j = string.find(code,modes[k][1],i);
+				if j and j<jmin then  -- pick closest one
+					jmin = j
+					mode = k
+				end
+			end
+			if mode ~= 0 then -- found something
+				j=jmin
+				ret[#ret+1] = {jmin}
+			end
+			if not j then break end -- found nothing
+		else
+			_,j = string.find(code,modes[mode][2],i); -- search for closing pair
+			if not j then break end
+			if (mode~=2 or string.sub(code,j-1,j-1) ~= "\\") then -- not (" and \")
+				ret[#ret][2] = j
+				mode = 0
+			end
+		end
+		i=j -- move to next position
+	end
+	if mode~= 0 then ret[#ret][2] = length end
+	return ret
+end
+
+is_inside_string = function(strings,pos) -- is position inside one of the strings?
+	local low = 1; local high = #strings;
+	local mid = high;
+	while high>low+1 do
+		mid = math.floor((low+high)/2)
+		if pos<strings[mid][1] then high = mid else low = mid end
+	end
+	if pos>strings[low][2] then mid = high else mid = low end
+	return strings[mid][1]<=pos and pos<=strings[mid][2]
+end
+
+--[[
 is_inside_string = function(pos,script)
 	local i1=string.find (script, "\"", 1);
 	if not i1 then 
@@ -588,14 +643,18 @@ is_inside_string = function(pos,script)
 	end
 	return false;
 end
+--]]
 
 -- COMPILATION
 
-preprocess_code = function(script)
+preprocess_code = function(script)  -- version 07/22/2018
+
 	--[[ idea: in each local a = function (args) ... end insert counter like:
 	local a = function (args) counter() ... end 
 	when counter exceeds limit exit with error
 	--]]
+	
+	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-.*\n","\n") -- strip comments in fancy way
 	
 	script="_ccounter = 0; " .. script;
 	
@@ -607,6 +666,9 @@ preprocess_code = function(script)
 	local i1=0; local i2 = 0; 
 	local found = true;
 	
+	
+	local strings = identify_strings(script);
+	
 	while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
 		
 		found = false;
@@ -614,12 +676,13 @@ preprocess_code = function(script)
 
 		-- i1 = where its looking
 		
-		i2=string.find (script, "while ", i1) -- fix while OK
+		i2=string.find (script, "while%s", i1) -- fix while OK
 		if i2 then
-			if not is_inside_string(i2,script) then
+			if not is_inside_string(strings,i2) then
 				local i21 = i2;
-				i2=string.find(script, "do", i2);
+				i2=string.find(script, "%sdo%s", i2);
 				if i2 then 
+					i2 = i2 + 1
 					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
 					i1=i21+6; -- after while
 					found = true;
@@ -630,7 +693,7 @@ preprocess_code = function(script)
 		i2=string.find (script, "function", i1) -- fix functions
 		if i2 then
 			--minetest.chat_send_all("func0")
-			if not is_inside_string(i2,script) then
+			if not is_inside_string(strings,i2) then
 				i2=string.find(script, ")", i2);
 				if i2 then 
 					script = script.sub(script,1, i2) .. _increase_ccounter .. script.sub(script, i2+1); 
@@ -641,11 +704,12 @@ preprocess_code = function(script)
 		
 		end
 		
-		i2=string.find (script, "for ", i1) -- fix for OK
+		i2=string.find (script, "for%s", i1) -- fix for OK
 		if i2 then
-			if not is_inside_string(i2,script) then
-				i2=string.find(script, "do", i2);
+			if not is_inside_string(strings,i2) then
+				i2=string.find(script, "%sdo%s", i2);
 				if i2 then 
+					i2 = i2 + 1
 					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
 					i1=i2+string.len(_increase_ccounter);
 					found = true;
@@ -653,9 +717,9 @@ preprocess_code = function(script)
 			end
 		end
 		
-		i2=string.find (script, "goto ", i1) -- fix goto OK
+		i2=string.find (script, "goto%s", i1) -- fix goto OK
 		if i2 then
-			if not is_inside_string(i2,script) then
+			if not is_inside_string(strings,i2) then
 				script = script.sub(script,1, i2-1) .. _increase_ccounter .. script.sub(script, i2); 
 				i1=i2+string.len(_increase_ccounter)+5; -- insert + skip goto
 				found = true;
@@ -664,7 +728,7 @@ preprocess_code = function(script)
 		
 		i2=string.find (script, "pause()", i1) -- fix pause ?
 		if i2 then
-			if not is_inside_string(i2,script) then
+			if not is_inside_string(strings,i2) then
 				script =  script.sub(script,1, i2-1) .. "_ccounter = 0;" .. script.sub(script,i2)
 				i1=i2+14+7; -- insert + skip _ccounter & pause
 				found = true;
@@ -1385,7 +1449,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
 			"  write_text.direction(text,mode) writes text to target block as infotext\n"..
 			"**BOOKS/CODE\n  title,text=book.read(i) returns title,contents of book at i-th position in library \n  book.write(i,title,text) writes book at i-th position at spawner library\n"..
-			"  code.run(text) compiles and runs the code in sandbox\n"..
+			"  code.run(text) compiles and runs the code in sandbox (privs only)\n"..
 			"  code.set(text) replaces current bytecode of robot\n"..
 			"  find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
 			"**PLAYERS\n"..
