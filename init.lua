@@ -651,20 +651,21 @@ end
 preprocess_code = function(script)  -- version 07/22/2018
 
 	--[[ idea: in each local a = function (args) ... end insert counter like:
-	local a = function (args) counter() ... end 
+	local a = function (args) counter_check_code ... end 
 	when counter exceeds limit exit with error
 	--]]
 	
-	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-.*\n","\n") -- strip comments in fancy way
+	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments in fancy way
 	
 	script="_ccounter = 0; " .. script;
 	
-	local i1 -- process script to insert call counter in every function
+	local i1 
+	-- process script to insert call counter in every function
 	local _increase_ccounter = " if _ccounter > " .. basic_robot.call_limit .. 
 	" then error(\"Execution count \".. _ccounter .. \" exceeded ".. basic_robot.call_limit .. "\") end _ccounter = _ccounter + 1; "
 	
 	
-	local i1=0; local i2 = 0; 
+	local i1=0; local i2 = 0;
 	local found = true;
 	
 	
@@ -675,7 +676,7 @@ preprocess_code = function(script)  -- version 07/22/2018
 		found = false;
 		i2 = nil;
 
-		-- i1 = where its looking
+		-- i1 = where its looking in current pass, i2 = hit position
 		
 		i2=string.find (script, "while%s", i1) -- fix while OK
 		if i2 then
