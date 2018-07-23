@@ -19,3 +19,11 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ----------------------------------------------------------------------
+
+
+GAMEPLAY:
+
+- robot has limited operations available every run ( 1 run per 1 second).
+- while using for loops, while loops or function calls it is limited to default 48 such code executions per run
+- while using 'physical' operations like move/dig robot has (default) 10 operations available per run. Default costs are
+  move=2, dig = 6, insert = 2, place = 2, machine.generate = 6, machine.smelt = 6, machine.grind = 6,

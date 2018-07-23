@@ -115,7 +115,7 @@ end
 
 basic_robot.digcosts = { -- 1 energy = 1 coal
 	["default:stone"] = 1/25,
-
+	["default:cloud"] = 10^8,
 }
 
 
@@ -433,9 +433,18 @@ basic_robot.commands.grab = function(name,target)
 
 end
 
+--local minetest_version = minetest.get_version().string;
 basic_robot.commands.read_book = function (itemstack) -- itemstack should contain book
-	local data = itemstack:get_meta():to_table().fields -- 0.4.16
-	--local data = minetest.deserialize(itemstack:get_metadata()) -- pre 0.4.16
+	local data;
+	--if minetest_version == "0.4.16" then
+		data = itemstack:get_meta():to_table().fields -- 0.4.16
+		if data and data.text then
+			data.text = data.text:gsub(string.char(13),string.char(10)) --for unknown reason books sometime? convert \n (10) to CR (13)
+		end
+	-- else
+		-- local data = minetest.deserialize(itemstack:get_metadata()) -- pre 0.4.16
+	-- end
+
 	if data then
 		return data.title,data.text;
 	else 
@@ -539,6 +548,8 @@ end
 
 local robot_activate_furnace = minetest.registered_nodes["default:furnace"].on_metadata_inventory_put; -- this function will activate furnace
 basic_robot.commands.activate = function(name,mode, dir)
+	
+	check_operations(name,2,true);
 	local obj = basic_robot.data[name].obj;
 	local tpos = pos_in_dir(obj, dir); -- position of target block in front
 	
@@ -896,7 +907,7 @@ basic_robot.commands.machine = {
 	-- convert fuel into energy
 	generate_power = function(name,input, amount) -- fuel used, if no fuel then amount specifies how much energy builtin generator should produce
 		
-		check_operations(name,1.5, true)
+		check_operations(name,6, true)
 						
 		if amount and amount>0 then -- attempt to generate power from builtin generator
 			local pos = basic_robot.data[name].spawnpos; -- position of spawner block
@@ -943,7 +954,7 @@ basic_robot.commands.machine = {
 	smelt = function(name,input,amount)  -- input material, amount of energy used for smelt
 		
 		local energy = 0; -- can only do one step at a run time
-		check_operations(name,2,true)
+		check_operations(name,6,true)
 		
 		if string.find(input," ") then return nil, "0: only one item per smelt" end
 		
@@ -1005,6 +1016,7 @@ basic_robot.commands.machine = {
 	-- grind
 	grind = function(name,input) 
 		--[in] ={fuel cost, out, quantity of material required for processing}
+		check_operations(name,6,true)
 		local recipe = basic_robot.technic.grinder_recipes[input];
 		if not recipe then return nil, "unknown recipe" end
 		local cost = recipe[1]; local output = recipe[2];
@@ -1035,6 +1047,7 @@ basic_robot.commands.machine = {
 	-- compress
 	compress = function(name,input) 
 		 --[in] ={fuel cost, out, quantity of material required for processing}
+		check_operations(name,6,true)
 		local recipe = basic_robot.technic.compressor_recipes[input];
 		if not recipe then return nil, "unknown recipe" end
 		local cost = recipe[1]; local output = recipe[2];
@@ -1061,13 +1074,15 @@ basic_robot.commands.machine = {
 	end,
 	
 	transfer_power = function(name,amount,target)
+		
+		check_operations(name,2, true);
 		local pos = basic_robot.data[name].spawnpos;
 		local data = basic_robot.data[name];
 		local tdata = basic_robot.data[target];
 		if not tdata then return nil, "target inactive" end
 		
 		local energy = 0; -- can only do one step at a run time
-		check_operations(name,0.5, true);
+		
 		
 		energy = data.menergy or 0;
 		if amount>energy then return nil,"energy too low" end

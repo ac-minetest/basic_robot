@@ -21,11 +21,11 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/07/22a";
+basic_robot.version = "2018/07/23a";
 
 basic_robot.data = {}; -- stores all robot related data
 --[[
-[name] = { sandbox= .., bytecode = ..., ram = ..., obj = robot object, spawnpos= ..., authlevel = ...} 
+[name] = { sandbox= .., bytecode = ..., ram = ..., obj = robot object, spawnpos= ..., authlevel = ... , t = code execution time} 
 robot object = object of entity, used to manipulate movements and more
 --]]
 basic_robot.ids = {}; -- stores maxid for each player
@@ -52,6 +52,7 @@ function getSandboxEnv (name)
 		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
 		}
 	
+	if not basic_robot.data[name].rom then basic_robot.data[name].rom = {} end -- create rom if not yet existing
 	local env = 
 	{
 		pcall=pcall,
@@ -398,16 +399,6 @@ function getSandboxEnv (name)
 		tonumber = tonumber, pairs = pairs,
 		ipairs = ipairs, error = error, type=type,
 		
-		--_ccounter = basic_robot.data[name].ccounter, -- counts how many executions of critical spots in script
-		
-		-- increase_ccounter = 
-		-- function() 
-			-- local _ccounter = basic_robot.data[name].ccounter;
-			-- if _ccounter > basic_robot.call_limit then
-				-- error("Execution limit " .. basic_robot.call_limit .. " exceeded");
-			-- end
-			-- basic_robot.data[name].ccounter = _ccounter + 1;
-		-- end,
 	};
 	
 	-- ROBOT FUNCTIONS: move,dig, place,insert,take,check_inventory,activate,read_node,read_text,write_text
@@ -565,7 +556,7 @@ end
 
 local identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
 
-	local i = 0; local j; local length = string.len(code);
+	local i = 0; local j; local _; local length = string.len(code);
 	local mode = 0; -- 0: not in string, 1: in '...' string, 2: in "..." string, 3. in [==[ ... ]==] string
 	local modes = {
 		{"'","'"},
@@ -616,37 +607,23 @@ is_inside_string = function(strings,pos) -- is position inside one of the string
 	return strings[mid][1]<=pos and pos<=strings[mid][2]
 end
 
---[[
-is_inside_string = function(pos,script)
-	local i1=string.find (script, "\"", 1);
-	if not i1 then 
-		return false 
-	end
-	local i2=0;
-	local par = 1;
-
-	if pos<i1 then 
-		return false 
-	end
-	while i1 do
-		i2=string.find(script,"\"",i1+1);
-		if i2 then
-			par = 1 - par;
-		else
-			return false
-		end
-		if par == 0 then
-			if i1<pos and pos<i2 then 
-				return true 
-			end
-		end
-		i1=i2;  
-	end
-	return false;
-end
---]]
-
 -- COMPILATION
+
+local find_outside_string = function(script, pattern, pos, strings)
+	local length = string.len(script)
+	local found = true;
+	local i1 = pos;
+	while found do
+		found = false
+		local i2 = string.find(script,pattern,i1);
+		if i2 then
+			if not is_inside_string(strings,i2) then return i2 end
+			found = true;
+			i1 = i2+1;
+		end
+	end
+	return nil
+end
 
 preprocess_code = function(script)  -- version 07/22/2018
 
@@ -655,37 +632,33 @@ preprocess_code = function(script)  -- version 07/22/2018
 	when counter exceeds limit exit with error
 	--]]
 	
-	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments in fancy way
-	
-	script="_ccounter = 0; " .. script;
-	
-	local i1 
+	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
+	script="local _c_ = 0; " .. script;
+
 	-- process script to insert call counter in every function
-	local _increase_ccounter = " if _ccounter > " .. basic_robot.call_limit .. 
-	" then error(\"Execution count \".. _ccounter .. \" exceeded ".. basic_robot.call_limit .. "\") end _ccounter = _ccounter + 1; "
-	
+	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. basic_robot.call_limit .. 
+	" then error(\"Execution count \".. _c_ .. \" exceeded ".. basic_robot.call_limit .. "\") end; "
 	
 	local i1=0; local i2 = 0;
 	local found = true;
 	
-	
 	local strings = identify_strings(script);
+	local inserts = {};
 	
 	while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
 		
 		found = false;
 		i2 = nil;
-
 		-- i1 = where its looking in current pass, i2 = hit position
 		
 		i2=string.find (script, "while%s", i1) -- fix while OK
 		if i2 then
 			if not is_inside_string(strings,i2) then
 				local i21 = i2;
-				i2=string.find(script, "%sdo%s", i2);
+				i2 = find_outside_string(script, "%sdo%s", i2, strings); -- find first do not inside string
 				if i2 then 
-					i2 = i2 + 1
-					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
+					i2 = i2 + 2 -- skip space and position at 'o' in ' do'
+					inserts[#inserts+1]= i2;
 					i1=i21+6; -- after while
 					found = true;
 				end
@@ -694,12 +667,11 @@ preprocess_code = function(script)  -- version 07/22/2018
 		
 		i2=string.find (script, "function", i1) -- fix functions
 		if i2 then
-			--minetest.chat_send_all("func0")
 			if not is_inside_string(strings,i2) then
-				i2=string.find(script, ")", i2);
+				i2 = find_outside_string(script, ")", i2, strings);
 				if i2 then 
-					script = script.sub(script,1, i2) .. _increase_ccounter .. script.sub(script, i2+1); 
-					i1=i2+string.len(_increase_ccounter);
+					inserts[#inserts+1]= i2;
+					i1=i2;
 					found = true;
 				end
 			end
@@ -709,45 +681,42 @@ preprocess_code = function(script)  -- version 07/22/2018
 		i2=string.find (script, "for%s", i1) -- fix for OK
 		if i2 then
 			if not is_inside_string(strings,i2) then
-				i2=string.find(script, "%sdo%s", i2);
+				i2 = find_outside_string(script, "%sdo%s", i2, strings);
 				if i2 then 
-					i2 = i2 + 1
-					script = script.sub(script,1, i2+1) .. _increase_ccounter .. script.sub(script, i2+2); 
-					i1=i2+string.len(_increase_ccounter);
+					i2 = i2 + 2 -- position at 'o' in ' do'
+					inserts[#inserts+1]= i2;
+					i1=i2;
 					found = true;
 				end
 			end
 		end
 		
-		i2=string.find (script, "goto%s", i1) -- fix goto OK
+		i2=string.find(script, "goto%s", i1) -- fix goto OK
 		if i2 then
 			if not is_inside_string(strings,i2) then
-				script = script.sub(script,1, i2-1) .. _increase_ccounter .. script.sub(script, i2); 
-				i1=i2+string.len(_increase_ccounter)+5; -- insert + skip goto
+				inserts[#inserts+1]= i2-1; -- just before goto
+				i1=i2+5; -- insert + skip goto
 				found = true;
 			end
 		end
-		
-		i2=string.find (script, "pause()", i1) -- fix pause ?
-		if i2 then
-			if not is_inside_string(strings,i2) then
-				script =  script.sub(script,1, i2-1) .. "_ccounter = 0;" .. script.sub(script,i2)
-				i1=i2+14+7; -- insert + skip _ccounter & pause
-				found = true;
-			end
-		end
-		
 	end
 	
-	return script
+	-- add inserts
+	local ret = {};	i1=1;
+	for i = 1, #inserts do
+		i2 = inserts[i];
+		ret[#ret+1] = string.sub(script,i1,i2);
+		i1 = i2+1;
+	end
+	ret[#ret+1] = string.sub(script,i1);
+
+	script = table.concat(ret,_increase_ccounter)
+	return script:gsub("pause()", "_c_ = 0; pause()") -- reset ccounter at pause
+	
 end
 
 
 local function CompileCode ( script )
-
-	--minetest.chat_send_all(script)
-	--if true then return nil, "" end
-	
 	local ScriptFunc, CompileError = loadstring( script )
 	if CompileError then
         return nil, CompileError
@@ -794,8 +763,8 @@ local function runSandbox( name)
 		return "Bytecode missing."
 	end	
 	
-	data.ccounter = 0;
 	data.operations = basic_robot.maxoperations;
+	data.t = os.clock()
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -803,15 +772,17 @@ local function runSandbox( name)
 	if cor then -- coroutine!
 		local err,ret
 		ret,err = coroutine.resume(cor)
+		data.t = os.clock()-data.t
 		if err then return err end
 		return nil
 	end
 	
 	local Result, RuntimeError = pcall( ScriptFunc )
+	data.t = os.clock()-data.t
 	if RuntimeError then
 		return RuntimeError
 	end
-    
+	
     return nil
 end
 
@@ -1140,7 +1111,7 @@ local spawn_robot = function(pos,node,ttl)
 		if not data.sandbox then data.sandbox = getSandboxEnv (name) end
 
 		-- actual code run process			
-		data.ccounter = 0;data.operations = basic_robot.maxoperations;
+		data.operations = basic_robot.maxoperations;
 		
 		setfenv(data.bytecode, data.sandbox )
 		
@@ -1183,7 +1154,7 @@ local spawn_robot = function(pos,node,ttl)
 	if data == nil then
 		basic_robot.data[name] = {};
 		data = basic_robot.data[name];
-		data.rom = {};
+		--data.rom = {};
 	end
 	
 	data.owner = owner;
