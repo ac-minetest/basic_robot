@@ -490,8 +490,8 @@ basic_robot.give_drops = function(nodename, inv) -- gives apropriate drops when 
 				local i = 0;
 				for k,v in pairs(drop.items) do
 					if i > max_items then break end; i=i+1;								
-					local rare = v.rarity or 1;
-					if math.random(1, rare)==1 then
+					local rare = v.rarity or 0;
+					if rare>0 and math.random(1, rare)==1 then
 						dropname = v.items[math.random(1,#v.items)]; -- pick item randomly from list
 						inv:add_item("main",dropname);
 						

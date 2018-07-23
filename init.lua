@@ -16,6 +16,10 @@ basic_robot.dig_require_energy = true; -- does robot require energy to dig stone
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
 	["craft_guide:sign_wall"] = true,
+	["basic_machines:battery_0"] = true,
+	["basic_machines:battery_1"] = true,
+	["basic_machines:battery_2"] = true,
+	["basic_machines:generator"] = true,
 }
 ----- END OF SETTINGS ------
 
@@ -361,6 +365,18 @@ function getSandboxEnv (name)
 			len = string.len, lower = string.lower,
 			upper = string.upper, rep = string.rep,
 			reverse = string.reverse, sub = string.sub,
+			
+			concat = function(strings, sep)
+				local length = 0;
+				for i = 1,#strings do
+					length = length + string.len(strings[i])
+					if length > 1024 then 
+						error("result string longer than 1024")
+						return
+					end
+				end
+				return table.concat(strings,sep or "") 
+			end,
 		},
 		math = {
 			abs = math.abs,	acos = math.acos,
@@ -545,7 +561,7 @@ end
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall"} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall",".."} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -1426,6 +1442,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"  code.run(text) compiles and runs the code in sandbox (privs only)\n"..
 			"  code.set(text) replaces current bytecode of robot\n"..
 			"  find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
+			"  string.concat({string1,string2,...}, separator) returns concatenated string. maxlength 1024\n"..
 			"**PLAYERS\n"..
 			"  find_player(3,pos) finds players in radius 3 around robot(position) and returns list, if none returns nil\n"..
 			"  attack(target) attempts to attack target player if nearby \n"..
