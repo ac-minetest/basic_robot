@@ -651,7 +651,7 @@ preprocess_code = function(script)  -- version 07/24/2018
 	--]]
 	
 	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-	script="local _c_ = 0; " .. script;
+	script="_c_ = 0; " .. script;
 
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. basic_robot.call_limit .. 
@@ -709,8 +709,8 @@ preprocess_code = function(script)  -- version 07/24/2018
 	ret[#ret+1] = string.sub(script,i1);
 
 	script = table.concat(ret,_increase_ccounter)
-	return script:gsub("pause()", "_c_ = 0; pause()") -- reset ccounter at pause
 	
+	return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
 
 
@@ -973,7 +973,7 @@ minetest.register_entity("basic_robot:robot",{
 				end
 				self.running = 0; -- stop execution
 				
-				if string.find(err,"stack overflow") then -- remove stupid player privs and spawner, ban player ip
+				if string.find(err,"stack overflow") then
 					local name = self.name;
 					local pos = basic_robot.data[name].spawnpos;
 					minetest.set_node(pos, {name = "air"});
