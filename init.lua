@@ -561,7 +561,7 @@ end
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall",".."} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_ccounter", "_G", "while%(", "while{", "pcall","%.%."} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -641,7 +641,7 @@ local find_outside_string = function(script, pattern, pos, strings)
 	return nil
 end
 
-preprocess_code = function(script)  -- version 07/22/2018
+preprocess_code = function(script)  -- version 07/24/2018
 
 	--[[ idea: in each local a = function (args) ... end insert counter like:
 	local a = function (args) counter_check_code ... end 
@@ -661,60 +661,40 @@ preprocess_code = function(script)  -- version 07/22/2018
 	local strings = identify_strings(script);
 	local inserts = {};
 	
-	while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
+	local constructs = {
+		{"while%s", "%sdo%s", 2, 6}, -- numbers: insertion pos = i2+2,  after skip to i1 = i12+6
+		{"function", ")", 0, 0},
+		{"for%s", "%sdo%s", 2, 0},
+		{"goto%s", nil , -1, 5},
+	}
+	
+	for i = 1,#constructs do
+		i1 = 0
+		while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
 		
-		found = false;
-		i2 = nil;
-		-- i1 = where its looking in current pass, i2 = hit position
-		
-		i2=string.find (script, "while%s", i1) -- fix while OK
-		if i2 then
-			if not is_inside_string(strings,i2) then
+			found = false;
+	
+			i2=find_outside_string(script, constructs[i][1], i1, strings) -- first part of construct
+			if i2 then
 				local i21 = i2;
-				i2 = find_outside_string(script, "%sdo%s", i2, strings); -- find first do not inside string
-				if i2 then 
-					i2 = i2 + 2 -- skip space and position at 'o' in ' do'
-					inserts[#inserts+1]= i2;
-					i1=i21+6; -- after while
-					found = true;
+				if constructs[i][2] then
+					i2 = find_outside_string(script, constructs[i][2], i2, strings); -- second part of construct ( if any )
+					if i2 then 
+						inserts[#inserts+1]= i2+constructs[i][3]; -- move to last position of construct[i][2]
+						found = true;
+					end
+				else
+					inserts[#inserts+1]= i2+constructs[i][3]
+					found = true -- 1 part construct
+				end
+				
+				if found then 
+					i1=i21+constructs[i][4]; -- skip to after constructs[i][1]
 				end
 			end
+				
 		end
-		
-		i2=string.find (script, "function", i1) -- fix functions
-		if i2 then
-			if not is_inside_string(strings,i2) then
-				i2 = find_outside_string(script, ")", i2, strings);
-				if i2 then 
-					inserts[#inserts+1]= i2;
-					i1=i2;
-					found = true;
-				end
-			end
-		
-		end
-		
-		i2=string.find (script, "for%s", i1) -- fix for OK
-		if i2 then
-			if not is_inside_string(strings,i2) then
-				i2 = find_outside_string(script, "%sdo%s", i2, strings);
-				if i2 then 
-					i2 = i2 + 2 -- position at 'o' in ' do'
-					inserts[#inserts+1]= i2;
-					i1=i2;
-					found = true;
-				end
-			end
-		end
-		
-		i2=string.find(script, "goto%s", i1) -- fix goto OK
-		if i2 then
-			if not is_inside_string(strings,i2) then
-				inserts[#inserts+1]= i2-1; -- just before goto
-				i1=i2+5; -- insert + skip goto
-				found = true;
-			end
-		end
+
 	end
 	
 	-- add inserts
