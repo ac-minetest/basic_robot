@@ -472,7 +472,7 @@ function getSandboxEnv (name)
 			maxn = table.maxn,
 			remove = table.remove,
 			sort = table.sort,
-		},
+		}
 		
 		env.code.run = function(script)
 			if basic_robot.data[name].authlevel < 3 then
@@ -1936,7 +1936,7 @@ end
 minetest.register_craftitem("basic_robot:control", {
 	description = "Robot remote control",
 	inventory_image = "control.png",
-	groups = {book = 1, not_in_creative_inventory = 1},
+	groups = {book = 1}, --not_in_creative_inventory = 1
 	stack_max = 1,
 	
 	on_secondary_use = function(itemstack, user, pointed_thing)
