@@ -395,13 +395,6 @@ function getSandboxEnv (name)
 			sqrt = math.sqrt, tan = math.tan,
 			tanh = math.tanh,
 			},
-		table = {
-			concat = table.concat,
-			insert = table.insert,
-			maxn = table.maxn,
-			remove = table.remove,
-			sort = table.sort,
-		},
 		os = {
 			clock = os.clock,
 			difftime = os.difftime,
@@ -471,6 +464,15 @@ function getSandboxEnv (name)
 	end
 			
 	if authlevel>=1 then -- robot privs
+	
+		
+		env.table = {
+			concat = table.concat,
+			insert = table.insert,
+			maxn = table.maxn,
+			remove = table.remove,
+			sort = table.sort,
+		},
 		
 		env.code.run = function(script)
 			if basic_robot.data[name].authlevel < 3 then
