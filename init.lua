@@ -625,8 +625,6 @@ is_inside_string = function(strings,pos) -- is position inside one of the string
 	return strings[mid][1]<=pos and pos<=strings[mid][2]
 end
 
--- COMPILATION
-
 local find_outside_string = function(script, pattern, pos, strings)
 	local length = string.len(script)
 	local found = true;
@@ -642,6 +640,8 @@ local find_outside_string = function(script, pattern, pos, strings)
 	end
 	return nil
 end
+
+-- COMPILATION
 
 preprocess_code = function(script)  -- version 07/24/2018
 
@@ -698,6 +698,8 @@ preprocess_code = function(script)  -- version 07/24/2018
 		end
 
 	end
+	
+	table.sort(inserts)
 	
 	-- add inserts
 	local ret = {};	i1=1;
