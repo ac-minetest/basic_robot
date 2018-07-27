@@ -25,8 +25,9 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/07/23a";
+basic_robot.version = "2018/07/27a";
 
+basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
 --[[
 [name] = { sandbox= .., bytecode = ..., ram = ..., obj = robot object, spawnpos= ..., authlevel = ... , t = code execution time} 
@@ -38,6 +39,8 @@ basic_robot.ids = {}; -- stores maxid for each player
 basic_robot.virtual_players = {}; -- this way robot can interact with the world as "player" TODO
 
 basic_robot.data.listening = {}; -- which robots listen to chat
+
+dofile(minetest.get_modpath("basic_robot").."/robogui.lua") -- gui stuff
 dofile(minetest.get_modpath("basic_robot").."/commands.lua")
 
 local check_code, preprocess_code,is_inside_string;
@@ -1231,113 +1234,6 @@ local despawn_robot = function(pos)
 	
 end
 
--- GUI
-
--- robogui GUI START ==================================================
-robogui = {}; -- a simple table of entries: [guiName] =  {getForm = ... , show = ... , response = ... , guidata = ...}
-robogui.register = function(def)
-	robogui[def.guiName] = {getForm = def.getForm, show = def.show, response = def.response, guidata = def.guidata or {}}
-end
-minetest.register_on_player_receive_fields(
-	function(player, formname, fields)
-		local gui = robogui[formname];
-		if gui then gui.response(player,formname,fields) end
-	end
-)
--- robogui GUI END ====================================================
-
-
-
---- DEMO of simple form registration, all in one place, clean and tidy
--- adapted for use with basic_robot
-
-
--- if not basic_gui then
-	-- basic_gui = _G.basic_gui; minetest = _G.minetest;
-	-- basic_gui.register({
-	-- guiName = "mainWindow", -- formname
-	
-	-- getForm = function(form_id, update) -- actual form design
-		-- local gui = basic_gui["mainWindow"];
-		-- local formdata = gui.guidata[form_id]
-		
-		-- if not formdata then -- init
-			-- gui.guidata[form_id] = {}; formdata = gui.guidata[form_id]
-			-- formdata.sel_tab = 1;
-			-- formdata.text = "default";
-			-- formdata.form = "";
-		-- end
-		-- if not update then return formdata.form end
-		
-		-- local sel_tab = formdata.sel_tab;
-		-- local text = formdata.text;
-		
-		-- formdata.form = "size[8,9]"..
-				-- "label[0,0;basic_gui_DEMO, form_id " .. form_id .. ", tab " .. sel_tab .. "]"..
-				-- "button[0,1;2,1;gui_button;CLICK ME]"..
-				-- "textarea[0.25,2;2,1;gui_textarea;text;" .. text .. "]"..
-				-- "tabheader[0,0;tabs;tab1,table demo,tab3;".. sel_tab .. ";true;true]"..
-				-- "list[current_player;main;0,5;8,4;]";
-		
-		-- if sel_tab == 2 then
-			-- formdata.form = "size[12,6.5;true]" ..
-			-- "tablecolumns[color;tree;text,width=32;text]" ..
-			-- "tableoptions[background=#00000000;border=false]" ..
-			-- "field[0.3,0.1;10.2,1;search_string;;" .. minetest.formspec_escape(text) .. "]" ..
-			-- "field_close_on_enter[search_string;false]" ..
-			-- "button[10.2,-0.2;2,1;search;" .. "Search" .. "]" ..
-			-- "table[0,0.8;12,4.5;list_settings;"..
-			-- "#FFFF00,1,TEST A,,"..
-			-- "#FFFF00,2,TEST A,,"..
-			-- ",3,test a,value A,"..
-			-- "#FFFF00,1,TEST B,,"..
-			-- ",2,test b,value B,"
-		-- end
-		
-		-- formdata.info = "This information comes with the form post"; -- extra data set
-	-- end,
-	
-	-- show = function(player_name,update) -- this is used to show form to user
-		-- local formname = "mainWindow";
-		-- local form_id = player_name; -- each player has his own window!
-		-- local gui = basic_gui[formname];
-		-- local formdata = gui.guidata[form_id]; -- all form data for this id gets stored here
-		-- if update then gui.getForm(form_id,true); formdata = gui.guidata[form_id]; end
-		-- minetest.show_formspec(player_name, "mainWindow", formdata.form)
-	-- end,
-	
-	-- response = function(player,formname, fields) -- this handles response
-		
-		-- local player_name = player:get_player_name();
-		-- local form_id = player_name;
-		-- local gui = basic_gui[formname];
-		-- local formdata = gui.guidata[form_id]; --gui.guidata[form_id]; 
-		-- if not formdata then say("err") return end --error!
-		
-		-- if fields.gui_textarea then 
-			-- formdata.text = fields.gui_textarea or "" 
-		-- end
-		
-		
-		-- if fields.tabs then 
-			-- formdata.sel_tab  = tonumber(fields.tabs) or 1;
-			
-			-- gui.show(player_name,true) -- update and show form
-		-- else
-			
-			-- local form = "size[5,5]" ..
-			-- "label[0,0;you interacted with demo form, fields : " .. 
-			-- _G.minetest.formspec_escape(_G.dump(fields)) .. "]"..
-			-- "label[0,4;" .. formdata.info .. "]"
-			-- _G.minetest.show_formspec(player_name,"basic_response", form);
-		-- end
-	-- end,
-	
-
--- })
--- end
-
-
 
 --process forms from spawner
 local on_receive_robot_form = function(pos, formname, fields, sender)
@@ -1400,105 +1296,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		end
 		
 		if fields.help then ----- INGAME HELP ------
-			
-			local text =  "BASIC LUA SYNTAX\n \nif x==1 then A else B end"..
-			"\n  for i = 1, 5 do something end \nwhile i<6 do A; i=i+1; end\n"..
-			"\n  arrays: myTable1 = {1,2,3},  myTable2 = {[\"entry1\"]=5, [\"entry2\"]=1}\n"..
-			"  access table entries with myTable1[1] or myTable2.entry1 or myTable2[\"entry1\"]\n \n"..
-			"ROBOT COMMANDS\n \n"..
-			"**MOVEMENT,DIGGING, PLACING, INVENTORY TAKE/INSERT\n  move.direction(), where direction is forward, backward, left,right, up, down)\n"..
-			"  left_down, ...,  backward_down, left_up, ..., backward_up\n"..
-			"  boost(v) sets robot velocity, -6<v<6, if v = 0 then stop\n"..
-			"  turn.left(), turn.right(), turn.angle(45)\n"..
-			"  dig.direction()\n"..
-			"  place.direction(\"default:dirt\", optional orientation param)\n"..
-			"  read_node.direction() tells you names of nodes\n"..
-			"  insert.direction(item, inventory) inserts item from robot inventory to target inventory\n"..
-			"  check_inventory.direction(itemname, inventory,index) looks at node and returns false/true, direction can be self,\n"..
-			"    if index>0 it returns itemname. if itemname == \"\" it checks if inventory empty\n"..
-			"  activate.direction(mode) activates target block\n"..
-			"  pickup(r) picks up all items around robot in radius r<8 and returns list or nil\n"..
-			"  craft(item,idx,mode) crafts item if required materials are present in inventory. mode = 1 returns recipe, optional recipe idx\n"..
-			"  take.direction(item, inventory) takes item from target inventory into robot inventory\n"..
-			"  read_text.direction(stringname,mode) reads text of signs, chests and other blocks, optional stringname for other meta,\n  mode 1 read number\n"..
-			"  write_text.direction(text,mode) writes text to target block as infotext\n"..
-			"**BOOKS/CODE\n  title,text=book.read(i) returns title,contents of book at i-th position in library \n  book.write(i,title,text) writes book at i-th position at spawner library\n"..
-			"  code.run(text) compiles and runs the code in sandbox (privs only)\n"..
-			"  code.set(text) replaces current bytecode of robot\n"..
-			"  find_nodes(\"default:dirt\",3) returns distance to node in radius 3 around robot, or false if none\n"..
-			"  string.concat({string1,string2,...}, separator) returns concatenated string. maxlength 1024\n"..
-			"**PLAYERS\n"..
-			"  find_player(3,pos) finds players in radius 3 around robot(position) and returns list, if none returns nil\n"..
-			"  attack(target) attempts to attack target player if nearby \n"..
-			"  grab(target) attempt to grab target player if nearby and returns true if succesful \n"..
-			"  player.getpos(name) return position of player, player.connected() returns list of players\n"..
-			"**ROBOT\n"..
-			"  say(\"hello\") will speak\n"..
-			"  self.listen(0/1) (de)attaches chat listener to robot\n"..
-			"  speaker, msg = self.listen_msg() retrieves last chat message if robot listens\n"..
-			"  self.send_mail(target,mail) sends mail to target robot\n"..
-			"  sender,mail = self.read_mail() reads mail, if any\n" ..
-			"  self.pos() returns table {x=pos.x,y=pos.y,z=pos.z}\n"..
-			"  self.name() returns robot name\n"..
-			"  self.operations() returns remaining robot operations\n"..
-			"  self.set_properties({textures=.., visual=..,visual_size=.., , ) sets visual appearance\n"..
-			"  set_animation(anim_start,anim_end,anim_speed,anim_stand_start) set mesh animation \n"..
-			"  self.spam(0/1) (dis)enable message repeat to all\n"..
-			"  self.remove() stops program and removes robot object\n"..
-			"  self.reset() resets robot position\n"..
-			"  self.spawnpos() returns position of spawner block\n"..
-			"  self.viewdir() returns vector of view for robot\n"..
-			"  self.fire(speed, pitch,gravity, texture, is_entity) fires a projectile from robot\n"..
-			"  self.fire_pos() returns last hit position\n"..
-			"  self.label(text) changes robot label\n"..
-			"  self.display_text(text,linesize,size) displays text instead of robot face, if no size return tex\n"..
-			"  self.sound(sample,volume, opt. pos) plays sound named 'sample' at robot location (opt. pos)\n"..
-			"  rom is aditional table that can store persistent data, like rom.x=1\n"..
-			"**KEYBOARD : place spawner at coordinates (20i,40j+1,20k) to monitor events\n"..
-			"  keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. } for keyboard event\n"..
-			"  keyboard.set(pos,type) set key at pos of type 0=air,1-6,7-15,16-271, limited to range 10 around\n"..
-			"  keyboard.read(pos) return node name at pos\n"..
-			"**TECHNIC FUNCTIONALITY: namespace 'machine'. most functions return true or nil, error\n" ..
-			"  energy() displays available energy\n"..
-			"  generate_power(fuel, amount) = energy, attempt to generate power from fuel material,\n" ..
-			"    if amount>0 try generate amount of power using builtin generator - this requires\n" ..
-			"    40 gold/mese/diamonblock upgrades for each 1 amount\n"..
-			"  smelt(input,amount) = progress/true. works as a furnace, if amount>0 try to\n" ..
-			"    use power to smelt - requires 10 upgrades for each 1 amount, energy cost is:\n"..
-			"    1/40*(1+amount)\n"..
-			"  grind(input) - grinds input material, requires upgrades for harder material\n"..
-			"  compress(input) - requires upgrades - energy intensive process\n" ..
-			"  transfer_power(amount,target_robot_name)\n"..
-			"**CRYPTOGRAPHY: namespace 'crypto'\n"..
-			"  encrypt(input,password) returns encrypted text, password is any string \n"..
-			"  decrypt(input,password) attempts to decrypt encrypted text\n"..
-			"  scramble(input,randomseed,sgn)  (de)permutes text randomly according to sgn = -1,1\n"..
-			"  basic_hash(input,n) returns simple mod hash from string input within range 0...n-1\n"..
-			"**PUZZLE: namespace 'puzzle' - need puzzle priv\n"..
-			"  set_triggers({trigger1, trigger2,...}) sets and initializes spatial triggers\n"..
-			"  check_triggers(pname) check if player is close to any trigger and run that trigger\n"..
-			"  set_node(pos,node) - set any node, limited to current protector mapblock & get_node(pos)\n"..
-			"  get_player(pname) return player objRef in current mapblock\n"..
-			"  chat_send_player(pname, text) \n"..
-			"  get_node_inv(pos) / get_player_inv(pname) - return inventories of nodes/players in current mapblock\n"..
-			"  get_meta(pos) - return meta of target position\n"..
-			"  get_gametime() - return current gametime\n"..
-			"  ItemStack(itemname) returns ItemRef to be used with inventory\n"..
-			"  count_objects(pos,radius)\n"..
-			"  pdata contains puzzle data like .triggers and .gamedata\n"..
-			"  add_particle(def)\n"
-			
-			
-			text = minetest.formspec_escape(text);
-			
-			--local form = "size [8,7] textarea[0,0;8.5,8.5;help;HELP;".. text.."]"
-			
-			--textlist[X,Y;W,H;name;listelem 1,listelem 2,...,listelem n]
-			local list = "";
-			for word in string.gmatch(text, "(.-)\r?\n+") do list = list .. word .. ", " end
-			local form = "size [10,8] textlist[-0.25,-0.25;10.25,8.5;help;" .. list .. "]"
-			minetest.show_formspec(sender:get_player_name(), "robot_help", form);
-			
+			robogui["robot_help"].show(name)
 			return
 		end
 		
@@ -1590,17 +1388,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		end
 		
 	end
-
+	
 -- handle form: when rightclicking robot entity, remote controller
-
-
--- minetest.register_on_player_receive_fields(
-	-- function(player, formname, fields)
-		-- local gui = robogui[formname];
-		-- if gui then gui.response(player,formname,fields) end
-	-- end
--- )
-
 
 
 minetest.register_on_player_receive_fields(
