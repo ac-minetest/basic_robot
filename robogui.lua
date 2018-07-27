@@ -251,19 +251,19 @@ local help_pages = {
 	["TECHNIC FUNCTIONALITY"] = {
 		"back to [Commands reference]",
 		"TECHNIC FUNCTIONALITY","",
-		"  All commands are in namespace 'machine', for example machine.energy()"
+		"  All commands are in namespace 'machine', for example machine.energy()",
 		"    most functions return: ok, error = true or nil, error",
 		"  To use some commands fully robot must be upgraded. 1 upgrade is",
 		"    goldblock+meseblock+diamonblock.",
 		"  energy() displays available energy",
-		"  generate_power(fuel, amount) = energy, attempt to generate power"
-		"    from fuel material. If amount>0 try generate amount of power"
-		"    using builtin generator - this requires 40 upgrades for each"
+		"  generate_power(fuel, amount) = energy, attempt to generate power",
+		"    from fuel material. If amount>0 try generate amount of power",
+		"    using builtin generator - this requires 40 upgrades for each",
 		"    1 amount",
 		"  smelt(input,amount) = progress/true. works as a furnace, if amount>0",
 		"    try to use power to smelt - requires 10 upgrades for each 1 amount,",
 		"    energy cost of smelt is: 1/40*(1+amount)",
-		"  grind(input) - grinds input material, requires upgrades for harder"
+		"  grind(input) - grinds input material, requires upgrades for harder",
 		"    materials",
 		"  compress(input) - requires upgrades - energy intensive process",
 		"  transfer_power(amount,target_robot_name)",
@@ -288,7 +288,7 @@ local help_pages = {
 		"  set_triggers({trigger1, trigger2,...}) sets and initializes spatial triggers",
 		"  check_triggers(pname) check if player is close to any trigger and run",
 		"    that trigger",
-		"  set_node(pos,node) - set any node, limited to current protector"
+		"  set_node(pos,node) - set any node, limited to current protector",
 		"    region",
 		"  get_player(pname) return player objRef in current protector region",
 		"  chat_send_player(pname, text)",
