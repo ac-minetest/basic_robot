@@ -1,17 +1,20 @@
 	-- SOKOBAN GAME, by rnd, robots port
+	
+
 	if not sokoban then
 		sokoban = {};
-		local players = find_player(5);
+		local players = find_player(8);
 		if not players then error("sokoban: no player near") end
 		name = players[1];
-		
-		self.show_form(name,
-		"size[2,1.25]"..
-		"label[0,0;SELECT LEVEL 1-90]"..
-		"field[0.25,1;1,1;LVL;LEVEL;1]"..
-		"button_exit[1.25,0.75;1,1;OK;OK]"
-		)
+
+		-- self.show_form(name,
+		-- "size[2,1.25]"..
+		-- "label[0,0;SELECT LEVEL 1-90]"..
+		-- "field[0.25,1;1,1;LVL;LEVEL;1]"..
+		-- "button_exit[1.25,0.75;1,1;OK;OK]"
+		-- )
 		state = 1 -- will wait for form receive otherwise game play
+		self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all white boxes pushed on aspen blocks")
 
 		player_ = puzzle.get_player(name); -- get player entity - player must be present in area
 		player_:set_eye_offset({x=0,y=0,z=0},{x=0,y=0,z=0});player_:set_physics_override({jump=1})	-- reset player
@@ -24,8 +27,8 @@
 		
 		sokoban.load=0;sokoban.playername =""; sokoban.pos = {};
 		SOKOBAN_WALL = "moreblocks:cactus_brick"
-		SOKOBAN_FLOOR = "default:desert_sandstone"
-		SOKOBAN_GOAL = "moreblocks:wood_tile_center"
+		SOKOBAN_FLOOR = "default:silver_sandstone"
+		SOKOBAN_GOAL = "default:aspen_tree"
 		SOKOBAN_BOX = "basic_robot:buttonFFFFFF"
 		
 		load_level = function(lvl)
@@ -56,8 +59,8 @@
 						imax=i;
 						file:close(); 
 						player_:set_physics_override({jump=0})
-						player_:set_eye_offset({x=0,y=20,z=0},{x=0,y=0,z=0})
-						say("games: sokoban level "..sokoban.level .." loaded by ".. name .. ". It has " .. sokoban.blocks  .. " boxes to push. "); return 
+						player_:set_eye_offset({x=0,y=20,z=0},{x=0,y=0,z=0});
+						return 
 					end
 					i=i+1;
 					if string.len(str)>jmax then jmax = string.len(str) end -- determine max dimensions
@@ -72,7 +75,7 @@
 						if s=="." then p.y=p.y-1;puzzle.set_node(p,{name=SOKOBAN_GOAL}); p.y=p.y+1;puzzle.set_node(p,{name="air"}) end
 						--starting position
 						if s=="@" then 
-							player_:setpos({x=p.x,y=p.y+1,z=p.z}); -- move player to start position
+							player_:setpos({x=p.x,y=p.y-0.5,z=p.z}); -- move player to start position
 							--p.y=p.y-1;puzzle.set_node(p,{name="default:glass"}); 
 							puzzle.set_node(p,{name="air"}) 
 							p.y=p.y+1;puzzle.set_node(p,{name="air"}) 
@@ -94,29 +97,21 @@
 			for i = 1, 20 do
 				for j = 1,20 do
 					local node = minetest.get_node({x=pos.x+i,y=pos.y-1,z=pos.z+j}).name
-					if node ~= "default:desert_sandstone" then minetest.set_node({x=pos.x+i,y=pos.y-1,z=pos.z+j}, {name = "default:desert_sandstone"}) end
+					if node ~= "default:silver_sandstone" then minetest.set_node({x=pos.x+i,y=pos.y-1,z=pos.z+j}, {name = "default:silver_sandstone"}) end
 					node = minetest.get_node({x=pos.x+i,y=pos.y,z=pos.z+j}).name
 					if node ~= "air" then minetest.set_node({x=pos.x+i,y=pos.y,z=pos.z+j}, {name = "air"}) end
 				end
 			end
 		end
 		
-	
 	end
 
 	
 if state == 1 then
-	sender,fields = self.read_form(); -- get fields from form submittal
-	if sender then
-		--say(serialize(fields))
-		
-		if fields.LVL then
-			clear_game()
-			load_level((tonumber(fields.LVL) or 1)-1)
-			state = 0
-			self.label("stand close to blue box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all boxes pushed on diamond blocks")
-		end
-	end
+	clear_game()
+	load_level(20)
+	state = 0
+	self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all white boxes pushed on aspen blocks")
 else
 	
 	local ppos = player_:getpos()
@@ -174,6 +169,12 @@ else
 					player_:set_physics_override({jump=1})
 					player_:set_eye_offset({x=0,y=0,z=0},{x=0,y=0,z=0})
 					
+					local player = _G.minetest.get_player_by_name(event.puncher);
+					if player then
+						local inv =  player:get_inventory();
+						inv:add_item("main",_G.ItemStack("skyblock:sokoban 4 "))
+					end
+						
 					local i,j;
 					for i = 1,imax do
 						for j=1,jmax do

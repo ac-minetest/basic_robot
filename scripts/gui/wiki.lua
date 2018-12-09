@@ -1,4 +1,7 @@
--- ROBOT WIKI
+-- ROBOT WIKI by rnd
+-- to do: ability for multiple links in 1 line
+
+
 if not init then
    _G.basic_robot.data[self.name()].obj:get_luaentity().timestep = 0.1
    local players = find_player(4);
@@ -8,27 +11,37 @@ if not init then
    vsize = 8;
    linesize = 60; -- break up longer lines
    
-	wiki = {   
-		["Main menu"] = "HELP CONTENTS\n \n".."double click link marked with [] or press enter while selected.\n \n".."[How to play]\n".."[Robot tutorial]",
-		["How to play"] = "HOW TO PLAY\n \nOpen inventory (press i on pc), then go to Quests and read."..
-		"Complete quests to progress in game and get nice rewards.\n \n[Main menu]",
-		["Robot tutorial"] = "ROBOT TUTORIAL\n \nLearn on simple programs first then make a lot of your own\n \n[Main menu]",
+	wiki = {   -- example of wiki pages
+		["MAIN PAGE"] = 
+		{
+			"-- WIKI CONTENTS -- ", "",
+			"double click link marked with [] or press enter while selected.","",
+			"[Viewing wiki]",
+			"[Editing wiki]"
+		},
+		
+		["Viewing wiki"] = {
+			"back to [MAIN PAGE]","",
+			" ** Viewing wiki",
+			"double click link marked with [] or press enter while selected."
+		},
+		
+		["Editing wiki"] = {
+			"back to [MAIN PAGE]","",
+			" ** Editing wiki",
+			"Edit wiki table and write in entries"
+		}
 	}
-	current = "Main menu";
+	
+	for k,v in pairs(wiki) do
+	local pages = wiki[k]; for i = 1,#pages do pages[i] = minetest.formspec_escape(pages[i]) end
+	end
+	
+	
+	current = "MAIN PAGE";
 	
 	render_page = function()
-		page = {}
-		local text = wiki[current];
-		for line in text:gmatch("[^\n]+") do
-			local llen = string.len(line);
-			local m = math.floor(llen/linesize)+1;
-			for i = 1, m do
-				page[#page+1]=minetest.formspec_escape(string.sub(line,(i-1)*linesize+1, i*linesize))
-			end
-				
-		end
-
-		local content = table.concat(page,",")
+		local content = table.concat(wiki[current],",")
 		return "size[" .. size .. "," .. size .. "] textlist[-0.25,-0.25;" .. (size+1) .. "," .. (vsize+1) .. ";wiki;".. content .. ";1]";
 	end
 	
@@ -39,16 +52,17 @@ end
 
 sender,fields = self.read_form()
 if sender then 
-	--self.label(serialize(fields)) 
 	local fsel = fields.wiki;
-	if fsel then
-		if string.sub(fsel,1,3) == "DCL" then 
-			local sel = tonumber(string.sub(fsel,5)) or 1;
-			if string.sub(page[sel],1,2) == "\\[" then
-				current = string.sub(page[sel],3,-3)
-				self.show_form(pname,render_page())
-			end
+	if fsel and string.sub(fsel,1,3) == "DCL" then
+		local sel = tonumber(string.sub(fsel,5)) or 1; -- selected line
+		local address = current or "main";
+		local pages = wiki[address];
+					
+		local link = _G.string.match(pages[sel] or "", "\\%[([%w%s]+)\\%]")
+		if wiki[link] then 
+			current = link;
+			self.show_form(pname,render_page())
+			--robot_show_help(name)
 		end
 	end
-	
 end

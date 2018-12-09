@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/07/27a";
+basic_robot.version = "2018/12/09a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -171,7 +171,7 @@ function getSandboxEnv (name)
 			fire = function(speed, pitch,gravity, texture, is_entity) -- experimental: fires an projectile
 				local obj = basic_robot.data[name].obj;
 				local pos = obj:getpos();
-				local yaw = obj:getyaw();
+				local yaw = obj:getyaw()+ math.pi/2;
 				pitch = pitch*math.pi/180
 				local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
 				-- fire particle
@@ -193,6 +193,7 @@ function getSandboxEnv (name)
 				local obj = minetest.add_entity(pos, "basic_robot:projectile");
 				if not obj then return end
 				obj:setvelocity(velocity);
+				obj:set_properties({textures = {texture or "default_furnace_fire_fg.png"}})
 				obj:setacceleration({x=0,y=-gravity,z=0});
 				local luaent = obj:get_luaentity();
 				luaent.name = name;
@@ -910,7 +911,7 @@ minetest.register_entity("basic_robot:robot",{
 	--textures={"character.png"},
 	
 	visual="cube",
-	textures={"topface.png","legs.png","face.png","face-back.png","left-hand.png","right-hand.png"},
+	textures={"topface.png","legs.png","left-hand.png","right-hand.png","face.png","face-back.png"},
 	
 	visual_size={x=1,y=1},
 	running = 0, -- does it run code or is it idle?	
@@ -1844,7 +1845,7 @@ minetest.register_entity(
 
 		on_step = function(self, dtime)
 			local vel = self.object:getvelocity();
-			if (self.oldvel.x~=0 and vel.x==0) or (self.oldvel.y~=0 and vel.y==0) or (self.oldvel.z~=0 and vel.z==0) then
+			if (self.oldvel.x~=0 and vel.x==0) or (self.oldvel.y~=0 and vel.y==0) or (self.oldvel.z~=0 and vel.z==0) then -- hit
 				local data = basic_robot.data[self.name];
 				if data then
 					data.fire_pos = self.object:getpos();

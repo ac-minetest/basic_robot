@@ -6,7 +6,7 @@ if not init then init = true
 		if k~="listening" and v.obj then 
 			local ent = v.obj:get_luaentity();
 			local t = v.t or 0; if t< 100000 then t = math.floor(t * 10000)/10 else t = 0 end
-			if ent then ret[#ret+1] = k .. "  " .. string.len(ent.code) .. " " .. string.len(_G.string.dump(v.bytecode)) .. "   ~   " .. t end
+			if ent then ret[#ret+1] = k .. "  " .. string.len(ent.code or "") .. " " .. string.len(_G.string.dump(v.bytecode) or "") .. "   ~   " .. t end
 		end 
 	end
 	mem1 = _G.collectgarbage("count")

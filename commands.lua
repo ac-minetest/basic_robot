@@ -21,34 +21,34 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	local yaw = obj:getyaw();
 	local pos = obj:getpos();
 	
-	if dir == 1 then -- left
+	if dir == 3 then -- left : 3
 		yaw = yaw + pi/2;
-	elseif dir == 2 then --right
+	elseif dir == 4 then --right: 4
 		yaw = yaw - pi/2;
-	elseif dir == 3 then -- forward
-	elseif dir == 4 then
-		yaw = yaw+pi; -- backward
+	elseif dir == 2 then -- forward: 1
+	elseif dir == 1 then
+		yaw = yaw+pi; -- backward: 2
 	elseif dir ==  5 then -- up
 		pos.y=pos.y+1
 	elseif dir ==  6 then -- down
 		pos.y=pos.y-1
 		
-	elseif dir ==  7 then -- left_down
+	elseif dir ==  10 then -- left_down : 9
 		yaw = yaw + pi/2;pos.y=pos.y-1
-	elseif dir ==  8 then -- right_down
+	elseif dir ==  9 then -- right_down: 10
 		yaw = yaw - pi/2;pos.y=pos.y-1
-	elseif dir ==  9 then -- forward_down
+	elseif dir ==  7 then -- forward_down: 7
 		pos.y=pos.y-1
-	elseif dir ==  10 then -- backward_down
+	elseif dir ==  8 then -- backward_down : 8
 		yaw = yaw + pi; pos.y=pos.y-1
 	
-	elseif dir ==  11 then -- left_up
+	elseif dir ==  14 then -- left_up: 13
 		yaw = yaw + pi/2;pos.y=pos.y+1
-	elseif dir ==  12 then -- right_up
+	elseif dir ==  13 then -- right_up: 14
 		yaw = yaw - pi/2;pos.y=pos.y+1
-	elseif dir ==  13 then -- forward_up
+	elseif dir ==  11 then -- forward_up : 11
 		pos.y=pos.y+1
-	elseif dir ==  14 then -- backward_up
+	elseif dir ==  12 then -- backward_up: 12
 		yaw = yaw + pi; pos.y=pos.y+1
 	end
 	
@@ -540,7 +540,10 @@ basic_robot.commands.display_text = function(obj,text,linesize,size)
 	if not size then return tex end
 	
 	if string.len(tex)<=1600 then
-		obj:set_properties({textures={"arrow.png","basic_machine_side.png",tex,"basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},visual_size = {x=size,y=size}})
+		obj:set_properties({
+		textures = {"topface.png","legs.png",tex,"face-back.png","left-hand.png","right-hand.png"},
+		--textures={"arrow.png","basic_machine_side.png",tex,"basic_machine_side.png","basic_machine_side.png","basic_machine_side.png"},
+		visual_size = {x=size,y=size}})
 	else
 		self.label("error: string too long")
 	end
