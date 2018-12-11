@@ -21,40 +21,40 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	local yaw = obj:getyaw();
 	local pos = obj:getpos();
 	
-	if dir == 3 then -- left : 3
-		yaw = yaw + pi/2;
-	elseif dir == 4 then --right: 4
+	if dir == 1 then -- left 
 		yaw = yaw - pi/2;
-	elseif dir == 2 then -- forward: 1
-	elseif dir == 1 then
-		yaw = yaw+pi; -- backward: 2
+	elseif dir == 2 then --right
+		yaw = yaw + pi/2;
+	elseif dir == 3 then -- forward
+	elseif dir == 4 then
+		yaw = yaw+pi; -- backward
 	elseif dir ==  5 then -- up
 		pos.y=pos.y+1
 	elseif dir ==  6 then -- down
 		pos.y=pos.y-1
 		
-	elseif dir ==  10 then -- left_down : 9
-		yaw = yaw + pi/2;pos.y=pos.y-1
-	elseif dir ==  9 then -- right_down: 10
+	elseif dir ==  7 then -- left_down
 		yaw = yaw - pi/2;pos.y=pos.y-1
-	elseif dir ==  7 then -- forward_down: 7
+	elseif dir ==  8 then -- right_down
+		yaw = yaw + pi/2;pos.y=pos.y-1
+	elseif dir ==  9 then -- forward_down
 		pos.y=pos.y-1
-	elseif dir ==  8 then -- backward_down : 8
+	elseif dir ==  10 then -- backward_down
 		yaw = yaw + pi; pos.y=pos.y-1
 	
-	elseif dir ==  14 then -- left_up: 13
-		yaw = yaw + pi/2;pos.y=pos.y+1
-	elseif dir ==  13 then -- right_up: 14
+	elseif dir ==  11 then -- left_up
 		yaw = yaw - pi/2;pos.y=pos.y+1
-	elseif dir ==  11 then -- forward_up : 11
+	elseif dir ==  12 then -- right_up
+		yaw = yaw + pi/2;pos.y=pos.y+1
+	elseif dir ==  13 then -- forward_up
 		pos.y=pos.y+1
-	elseif dir ==  12 then -- backward_up: 12
+	elseif dir ==  14 then -- backward_up
 		yaw = yaw + pi; pos.y=pos.y+1
 	end
 	
 	if dir ~= 5 and dir ~= 6 then 
-		pos.x = pos.x+math.cos(yaw)
-		pos.z = pos.z+math.sin(yaw)
+		pos.x = pos.x+math.sin(yaw)
+		pos.z = pos.z+math.cos(yaw)
 	end
 	
 	return pos

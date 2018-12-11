@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/12/09a";
+basic_robot.version = "2018/12/11a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -364,11 +364,20 @@ function getSandboxEnv (name)
 		string = {
 			byte = string.byte,	char = string.char,
 			find = string.find,
-			format = string.format,	gsub = string.gsub,
+			gsub = string.gsub,
 			gmatch = string.gmatch,
 			len = string.len, lower = string.lower,
 			upper = string.upper, rep = string.rep,
 			reverse = string.reverse, sub = string.sub,
+			
+			format = function(...)
+				local out = string.format(...)
+				if string.len(out) > 1024 then
+					error("result string longer than 1024")
+					return
+				end
+				return out				
+			end,
 			
 			concat = function(strings, sep)
 				local length = 0;
