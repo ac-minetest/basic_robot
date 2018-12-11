@@ -26,8 +26,8 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	elseif dir == 2 then --right
 		yaw = yaw + pi/2;
 	elseif dir == 3 then -- forward
-	elseif dir == 4 then
-		yaw = yaw+pi; -- backward
+		yaw = yaw+pi;
+	elseif dir == 4 then -- backward
 	elseif dir ==  5 then -- up
 		pos.y=pos.y+1
 	elseif dir ==  6 then -- down
@@ -37,19 +37,19 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 		yaw = yaw - pi/2;pos.y=pos.y-1
 	elseif dir ==  8 then -- right_down
 		yaw = yaw + pi/2;pos.y=pos.y-1
-	elseif dir ==  9 then -- forward_down
+	elseif dir ==  10 then -- forward_down
+		yaw = yaw + pi;pos.y=pos.y-1
+	elseif dir ==  9 then -- backward_down
 		pos.y=pos.y-1
-	elseif dir ==  10 then -- backward_down
-		yaw = yaw + pi; pos.y=pos.y-1
 	
 	elseif dir ==  11 then -- left_up
 		yaw = yaw - pi/2;pos.y=pos.y+1
 	elseif dir ==  12 then -- right_up
 		yaw = yaw + pi/2;pos.y=pos.y+1
-	elseif dir ==  13 then -- forward_up
+	elseif dir ==  14 then -- forward_up
+		pos.y=pos.y+1;yaw = yaw + pi;
+	elseif dir ==  13 then -- backward_up
 		pos.y=pos.y+1
-	elseif dir ==  14 then -- backward_up
-		yaw = yaw + pi; pos.y=pos.y+1
 	end
 	
 	if dir ~= 5 and dir ~= 6 then 
