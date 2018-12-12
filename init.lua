@@ -994,12 +994,9 @@ minetest.register_entity("basic_robot:robot",{
 					local name = self.name;
 					local pos = basic_robot.data[name].spawnpos;
 					minetest.set_node(pos, {name = "air"});
-				
-					local privs = core.get_player_privs(self.owner);privs.interact = false; 
-					
-					core.set_player_privs(self.owner, privs); minetest.auth_reload()
-					minetest.ban_player(self.owner)
-					
+					--local privs = core.get_player_privs(self.owner);privs.interact = false; 
+					--core.set_player_privs(self.owner, privs); minetest.auth_reload()
+					minetest.kick_player(self.owner, "#basic_robot: stack overflow")
 				end
 				
 				local name = self.name;
