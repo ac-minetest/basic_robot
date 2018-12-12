@@ -656,6 +656,8 @@ end
 
 -- COMPILATION
 
+--todo: 2018/12 this suddenly stopped working, wtf??
+
 preprocess_code = function(script)  -- version 07/24/2018
 
 	--[[ idea: in each local a = function (args) ... end insert counter like:
@@ -674,17 +676,18 @@ preprocess_code = function(script)  -- version 07/24/2018
 	local found = true;
 	
 	local strings = identify_strings(script);
+
 	local inserts = {};
 	
 	local constructs = {
 		{"while%s", "%sdo%s", 2, 6}, -- numbers: insertion pos = i2+2,  after skip to i1 = i12+6
-		{"function", ")", 0, 0},
-		{"for%s", "%sdo%s", 2, 0},
+		{"function", ")", 0, 8},
+		{"for%s", "%sdo%s", 2, 4},
 		{"goto%s", nil , -1, 5},
 	}
 	
 	for i = 1,#constructs do
-		i1 = 0
+		i1 = 0; found = true
 		while (found) do -- PROCESS SCRIPT AND INSERT COUNTER AT PROBLEMATIC SPOTS
 		
 			found = false;
@@ -709,7 +712,6 @@ preprocess_code = function(script)  -- version 07/24/2018
 			end
 				
 		end
-
 	end
 	
 	table.sort(inserts)
@@ -724,7 +726,6 @@ preprocess_code = function(script)  -- version 07/24/2018
 	ret[#ret+1] = string.sub(script,i1);
 
 	script = table.concat(ret,_increase_ccounter)
-	
 	return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
 
@@ -754,6 +755,7 @@ local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCo
 	end
 	if err then return err end
 	
+		
 	local bytecode, err = CompileCode ( script );
 	if err then return err end
 	basic_robot.data[name].bytecode = bytecode;

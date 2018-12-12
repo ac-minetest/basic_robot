@@ -22,39 +22,39 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 	local pos = obj:getpos();
 	
 	if dir == 1 then -- left 
-		yaw = yaw - pi/2;
-	elseif dir == 2 then --right
 		yaw = yaw + pi/2;
+	elseif dir == 2 then --right
+		yaw = yaw - pi/2;
 	elseif dir == 3 then -- forward
-		yaw = yaw+pi;
 	elseif dir == 4 then -- backward
+		yaw = yaw+pi;
 	elseif dir ==  5 then -- up
 		pos.y=pos.y+1
 	elseif dir ==  6 then -- down
 		pos.y=pos.y-1
 		
 	elseif dir ==  7 then -- left_down
-		yaw = yaw - pi/2;pos.y=pos.y-1
-	elseif dir ==  8 then -- right_down
 		yaw = yaw + pi/2;pos.y=pos.y-1
+	elseif dir ==  8 then -- right_down
+		yaw = yaw - pi/2;pos.y=pos.y-1
 	elseif dir ==  10 then -- forward_down
-		yaw = yaw + pi;pos.y=pos.y-1
-	elseif dir ==  9 then -- backward_down
 		pos.y=pos.y-1
+	elseif dir ==  9 then -- backward_down
+		yaw = yaw + pi;pos.y=pos.y-1
 	
 	elseif dir ==  11 then -- left_up
-		yaw = yaw - pi/2;pos.y=pos.y+1
-	elseif dir ==  12 then -- right_up
 		yaw = yaw + pi/2;pos.y=pos.y+1
+	elseif dir ==  12 then -- right_up
+		yaw = yaw - pi/2;pos.y=pos.y+1
 	elseif dir ==  14 then -- forward_up
-		pos.y=pos.y+1;yaw = yaw + pi;
-	elseif dir ==  13 then -- backward_up
 		pos.y=pos.y+1
+	elseif dir ==  13 then -- backward_up
+		yaw = yaw + pi;pos.y=pos.y+1
 	end
 	
 	if dir ~= 5 and dir ~= 6 then 
-		pos.x = pos.x+math.sin(yaw)
-		pos.z = pos.z+math.cos(yaw)
+		pos.x = pos.x - math.sin(yaw) -- math.cos(yaw+pi/2)
+		pos.z = pos.z + math.cos(yaw) -- math.sin(yaw+pi/2)
 	end
 	
 	return pos
@@ -92,7 +92,7 @@ basic_robot.commands.move = function(name,dir)
 
 	obj:moveto(pos, true)
 	
-	-- sit and stand up for model - doenst work for overwriten obj export
+	-- sit and stand up for model - doesnt work for overwriten obj export
 	-- if dir == 5 then-- up
 		-- obj:set_animation({x=0,y=0})
 	-- elseif dir == 6 then -- down
