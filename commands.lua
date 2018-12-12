@@ -32,16 +32,14 @@ local function pos_in_dir(obj, dir) -- position after we move in specified direc
 		pos.y=pos.y+1
 	elseif dir ==  6 then -- down
 		pos.y=pos.y-1
-		
 	elseif dir ==  7 then -- left_down
 		yaw = yaw + pi/2;pos.y=pos.y-1
 	elseif dir ==  8 then -- right_down
 		yaw = yaw - pi/2;pos.y=pos.y-1
-	elseif dir ==  10 then -- forward_down
+	elseif dir ==  9 then -- forward_down
 		pos.y=pos.y-1
-	elseif dir ==  9 then -- backward_down
+	elseif dir ==  10 then -- backward_down
 		yaw = yaw + pi;pos.y=pos.y-1
-	
 	elseif dir ==  11 then -- left_up
 		yaw = yaw + pi/2;pos.y=pos.y+1
 	elseif dir ==  12 then -- right_up
