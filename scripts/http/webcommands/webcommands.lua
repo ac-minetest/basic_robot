@@ -19,8 +19,8 @@ if not fetch then
 	  state = 0
 	  if not res.succeeded then self.label("#ERROR: data couldn't be downloaded :\n" .. minetest.serialize(res) ) return end
 	  if res.data == "" then return end
-	  local req = res.data; req = string.gsub(req,"%%20","S")
-	  if res.data then self.label(os.clock() .. ' received cmd : ' .. res.data) end
+	  local req = res.data; req = string.gsub(req,"%%20"," ")
+	  if res.data then self.label(os.clock() .. ' received cmd : ' .. req) end
 	end
 
 end
