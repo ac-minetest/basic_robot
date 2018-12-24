@@ -3,7 +3,7 @@
 
 basic_robot = {};
 ------  SETTINGS  --------
-basic_robot.call_limit = 48; -- how many execution calls per script run allowed
+basic_robot.call_limit = {50,200,1500,10^9}; -- how many execution calls per script run allowed, for auth levels 0,1,2 (normal, robot, puzzle, admin)
 basic_robot.entry_count = 2 -- how many robots ordinary player can have
 basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2018/12/11a";
+basic_robot.version = "2018/12/24a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -490,7 +490,7 @@ function getSandboxEnv (name)
 		env.code.run = function(script)
 			if basic_robot.data[name].authlevel < 3 then
 				local err = check_code(script);
-				script = preprocess_code(script);
+				script = preprocess_code(script, basic_robot.call_limit[basic_robot.data[name].authlevel+1]);
 				if err then 
 					minetest.chat_send_player(name,"#ROBOT CODE CHECK ERROR : " .. err) 
 					return 
@@ -658,7 +658,7 @@ end
 
 --todo: 2018/12 this suddenly stopped working, wtf??
 
-preprocess_code = function(script)  -- version 07/24/2018
+preprocess_code = function(script, call_limit)  -- version 07/24/2018
 
 	--[[ idea: in each local a = function (args) ... end insert counter like:
 	local a = function (args) counter_check_code ... end 
@@ -669,8 +669,8 @@ preprocess_code = function(script)  -- version 07/24/2018
 	script="_c_ = 0; " .. script;
 
 	-- process script to insert call counter in every function
-	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. basic_robot.call_limit .. 
-	" then error(\"Execution count \".. _c_ .. \" exceeded ".. basic_robot.call_limit .. "\") end; "
+	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. call_limit .. 
+	" then _G.error(\"Execution count \".. _c_ .. \" exceeded ".. call_limit .. "\") end; "
 	
 	local i1=0; local i2 = 0;
 	local found = true;
@@ -747,11 +747,13 @@ local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCo
 	local cor = false;
 	if string.sub(script,1,11) == "--coroutine" then cor = true end
 	
-	if basic_robot.data[name].authlevel<3 then -- not admin
+	local authlevel = basic_robot.data[name].authlevel;
+	
+	if authlevel<3 then -- not admin
 		err = check_code(script);
-		script = preprocess_code(script);
+		script = preprocess_code(script,basic_robot.call_limit[authlevel+1]);
 	elseif cor then
-		script = preprocess_code(script); --  coroutines need ccounter reset or 'infinite loops' fail after limit
+		script = preprocess_code(script, basic_robot.call_limit[authlevel+1]); --  coroutines need ccounter reset or 'infinite loops' fail after limit
 	end
 	if err then return err end
 	
@@ -1104,7 +1106,7 @@ local spawn_robot = function(pos,node,ttl)
 		
 			if data.authlevel<3 then -- not admin
 				err = check_code(script);
-				script = preprocess_code(script);
+				script = preprocess_code(script, basic_robot.call_limit[data.authlevel+1]);
 			end
 			if err then 
 				meta:set_string("infotext","#CODE CHECK ERROR : " .. err);
