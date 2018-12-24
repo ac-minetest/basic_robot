@@ -8,7 +8,6 @@ result = function(res)  -- res.data is string containing result
   if not res.succeeded then self.label("#ERROR: data couldn't be downloaded :\n" .. minetest.serialize(res) ) return end
   if res.data then self.label(res.data) end
 end
-fetch({url = "elysee.fr/?how_to_make_bomb", timeout = 30}, result)
 
 fetch({url = "http://185.85.149.248/FILES/minetest/README.txt", timeout = 30}, result)
 end
