@@ -488,11 +488,11 @@ basic_robot.give_drops = function(nodename, inv) -- gives apropriate drops when 
 				local i = 0;
 				for k,v in pairs(drop.items) do
 					if i > max_items then break end; i=i+1;								
-					local rare = v.rarity or 0;
+					local rare = v.rarity or 1;
 					if rare>0 and math.random(1, rare)==1 then
 						dropname = v.items[math.random(1,#v.items)]; -- pick item randomly from list
 						inv:add_item("main",dropname);
-						
+						break
 					end
 				end
 			else
@@ -756,8 +756,11 @@ basic_robot.commands.keyboard = {
 
 basic_robot.commands.craftcache = {};
 
-basic_robot.commands.craft = function(item, mode, idx, name)
+basic_robot.commands.craft = function(item, mode, idx,amount, name)
+	amount = amount and tonumber(amount) or 1;
+	if amount<0 then amount = 1 end
 	if not item then return false end
+
 	
 	local cache = basic_robot.commands.craftcache[name];
 	if not cache then basic_robot.commands.craftcache[name] = {}; cache = basic_robot.commands.craftcache[name] end
@@ -820,12 +823,12 @@ basic_robot.commands.craft = function(item, mode, idx, name)
 	local inv = minetest.get_meta(pos):get_inventory();
 	
 	for item,quantity in pairs(itemlist) do
-		local stack = ItemStack(item .. " " .. quantity);
+		local stack = ItemStack(item .. " " .. quantity*amount);
 		if not inv:contains_item("main",stack) then return false end
 	end
 	
 	for item,quantity in pairs(itemlist) do
-		local stack = ItemStack(item .. " " .. quantity);
+		local stack = ItemStack(item .. " " .. quantity*amount);
 		inv:remove_item("main",stack);
 	end
 	
