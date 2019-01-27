@@ -457,10 +457,11 @@ basic_robot.commands.write_book = function(name,title,text) -- returns itemstack
 	local data = {} 
 	
 	if title == "" or not title then title = "program book "..minetest.get_gametime() end
-	data.title = title
+	data.title = title or ""
 	data.text = text or ""
 	data.text_len = #data.text
 	data.page = 1
+	data.description = title or ""
 	data.page_max = math.ceil((#data.text:gsub("[^\n]", "") + 1) / lpp)
 	data.owner = name
 	--local data_str = minetest.serialize(data) -- pre 0.4.16
@@ -484,15 +485,16 @@ basic_robot.give_drops = function(nodename, inv) -- gives apropriate drops when 
 				if max_items==0 then -- just drop all the items (taking the rarity into consideration)
 					max_items = #table.drop.items or 0;
 				end
+				max_items = math.random(max_items) -- return random number of items			
 				local drop = table.drop;
 				local i = 0;
 				for k,v in pairs(drop.items) do
-					if i > max_items then break end; i=i+1;								
+					if i > max_items then break end; 
+					i=i+1;								
 					local rare = v.rarity or 1;
 					if rare>0 and math.random(1, rare)==1 then
 						dropname = v.items[math.random(1,#v.items)]; -- pick item randomly from list
 						inv:add_item("main",dropname);
-						break
 					end
 				end
 			else

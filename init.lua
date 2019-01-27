@@ -209,7 +209,7 @@ function getSandboxEnv (name)
 			
 			label = function(text)
 				local obj = basic_robot.data[name].obj;
-				obj:set_properties({nametag = text}); -- "[" .. name .. "] " .. 
+				obj:set_properties({nametag = text or ""}); -- "[" .. name .. "] " .. 
 			end,
 			
 			display_text = function(text,linesize,size)
@@ -1578,6 +1578,7 @@ minetest.register_on_player_receive_fields(
 						if not data then data = {} end
 						local text = fields.book or "";
 						if string.len(text) > 64000 then 
+							local sender = player:get_player_name();
 							minetest.chat_send_all("#ROBOT: " .. sender .. " is spamming with long text.") return 
 						end
 						data.text = text or ""
