@@ -25,18 +25,8 @@ if not fetch then
 		self.label(os.date("%X") ..', cmd : ' .. req)
 		local i = string.find(req," !")
 		if i then
-			local cmd = string.sub(req,i+2)
-			if cmd == "players" then
-				local players = minetest.get_connected_players();
-				out = {};
-				for i = 1,#players do out[i] = players[i]:get_player_name() end
-				MT2web("online players : " .. table.concat(out,", "))
-			else
-				run_commmand(cmd)
-			end
+			run_commmand(string.sub(req,i+2))
 		end
-		
-		
 	end
 	end
 	
@@ -59,8 +49,6 @@ if not fetch then
 		fetch({url = "http://".. address .. "/mtmsg/"..message, timeout = 5}, result) 
 	end
 	MT2web("minetest robot started and listening.")
-	
-	self.listen(1)
 end
 
 

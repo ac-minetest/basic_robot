@@ -4,8 +4,8 @@
 basic_robot = {};
 ------  SETTINGS  --------
 basic_robot.call_limit = {50,200,1500,10^9}; -- how many execution calls per script run allowed, for auth levels 0,1,2 (normal, robot, puzzle, admin)
-basic_robot.entry_count = 2 -- how many robots ordinary player can have
-basic_robot.advanced_count = 16 -- how many robots player with robot privs can have
+basic_robot.count = {2,4,16,128} -- how many robots player can have
+
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
 basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
 
@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2019/01/13a";
+basic_robot.version = "2019/02/16a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -215,29 +215,6 @@ function getSandboxEnv (name)
 			display_text = function(text,linesize,size)
 				local obj = basic_robot.data[name].obj;
 				return commands.display_text(obj,text,linesize,size)
-			end,
-			
-			sound = function(sample,volume, pos)
-				if pos then
-					return minetest.sound_play( sample,
-					{
-						pos = pos,
-						gain = volume or 1, 
-						max_hear_distance = 32, -- default, uses an euclidean metric
-					})
-				end
-				
-				local obj = basic_robot.data[name].obj;
-				return minetest.sound_play( sample,
-				{
-					object = obj,
-					gain = volume or 1, 
-					max_hear_distance = 32, -- default, uses an euclidean metric
-				})
-			end,
-			
-			sound_stop = function(handle)
-				minetest.sound_stop(handle)
 			end,
 			
 		},
@@ -478,7 +455,9 @@ function getSandboxEnv (name)
 			
 	if authlevel>=1 then -- robot privs
 	
-		
+		env.self.sound = minetest.sound_play
+		env.self.sound_stop = minetest.sound_stop
+	
 		env.table = {
 			concat = table.concat,
 			insert = table.insert,
@@ -512,7 +491,6 @@ function getSandboxEnv (name)
 			end
 			return true
 		end
-	
 		
 		env.self.read_form = function()
 			local fields = basic_robot.data[name].read_form;
@@ -590,9 +568,9 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 	local i = 0; local j; local _; local length = string.len(code);
 	local mode = 0; -- 0: not in string, 1: in '...' string, 2: in "..." string, 3. in [==[ ... ]==] string
 	local modes = {
-		{"'","'"},
-		{"\"","\""},
-		{"%[=*%[","%]=*%]"}
+		{"'","'"}, -- inside ' '
+		{"\"","\""}, -- inside " "
+		{"%[=*%[","%]=*%]"}, -- inside [=[ ]=]
 	}
 	local ret = {}
 	while i < length do
@@ -615,7 +593,7 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 		else
 			_,j = string.find(code,modes[mode][2],i); -- search for closing pair
 			if not j then break end
-			if (mode~=2 or string.sub(code,j-1,j-1) ~= "\\") then -- not (" and \")
+			if (mode~=2 or (string.sub(code,j-1,j-1) ~= "\\") or string.sub(code,j-2,j-1) == "\\\\") then -- not (" and not \" - but "\\" is allowed)
 				ret[#ret][2] = j
 				mode = 0
 			end
@@ -625,6 +603,7 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 	if mode~= 0 then ret[#ret][2] = length end
 	return ret
 end
+
 
 is_inside_string = function(strings,pos) -- is position inside one of the strings?
 	local low = 1; local high = #strings;
@@ -805,10 +784,24 @@ end
 
 -- note: to see memory used by lua in kbytes: collectgarbage("count")
 
+local get_authlevel = function(name) -- given player name return auth level
+	local privs = minetest.get_player_privs(name); 
+	local authlevel = 0;
+	if privs.privs then -- set auth level depending on privs
+		authlevel = 3
+	elseif privs.puzzle then 
+		authlevel = 2
+	elseif privs.robot then
+		authlevel = 1
+	else
+		authlevel = 0
+	end
+	return authlevel
+end
+
 local function setupid(owner)
 	local privs = minetest.get_player_privs(owner); if not privs then return end
-	local maxid = basic_robot.entry_count;
-	if privs.robot or privs.puzzle then maxid = basic_robot.advanced_count end -- max id's per user
+	local maxid = basic_robot.count[get_authlevel(owner)+1] or 2;
 	basic_robot.ids[owner] = {id = 1, maxid =  maxid}; --active id for remove control
 end
 
@@ -1584,6 +1577,7 @@ minetest.register_on_player_receive_fields(
 						data.text = text or ""
 						data.title = fields.title or ""
 						data.text_len = #data.text
+						data.description = fields.title or ""
 						data.page = 1
 						data.owner = data.owner or ""
 						local lpp = 14
@@ -1645,17 +1639,7 @@ minetest.register_node("basic_robot:spawner", {
 		local owner = placer:get_player_name();
 		meta:set_string("owner", owner); 
 		
-		local privs = minetest.get_player_privs(placer:get_player_name()); 
-		local authlevel = 0;
-		if privs.privs then -- set auth level depending on privs
-			authlevel = 3
-		elseif privs.puzzle then 
-			authlevel = 2
-		elseif privs.robot then
-			authlevel = 1
-		else
-			authlevel = 0
-		end
+		local authlevel = get_authlevel(placer:get_player_name());
 		
 		meta:set_int("authlevel",authlevel)
 		local sec_hash = minetest.get_password_hash("",authlevel .. owner .. basic_robot.password) -- 'digitally sign' authlevel using password
@@ -1749,6 +1733,7 @@ minetest.register_craftitem("basic_robot:control", {
 			local ids = basic_robot.ids[owner]; if not ids then setupid(owner) end
 			local id = basic_robot.ids[owner].id or 1; -- read active id for player
 			local name = owner..id;
+			
 			local form = 
 			"size[9.5,1.25]" ..  -- width, height
 			"textarea[1.25,-0.25;8.75,2.25;code;;".. code.."]"..
