@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2019/02/16a";
+basic_robot.version = "2019/06/03a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -724,7 +724,7 @@ end
 local function setCode( name, script ) -- to run script: 1. initSandbox 2. setCode 3. runSandbox
 	local err;
 	local cor = false;
-	if string.sub(script,1,11) == "--coroutine" then cor = true end
+	if string.find(string.sub(script,1,32), "coroutine") then cor = true end
 	
 	local authlevel = basic_robot.data[name].authlevel;
 	
@@ -980,9 +980,19 @@ minetest.register_entity("basic_robot:robot",{
 			if err and type(err) == "string" then 
 				local i = string.find(err,":");
 				if i then err = string.sub(err,i+1) end
-				if string.sub(err,-5)~="abort" then
+				-- recreate dead coroutine, does this have some side effects like memory leak?
+				if err == "cannot resume dead coroutine" then 
+					local data = basic_robot.data[self.name]
+					data.cor = coroutine.create(data.bytecode)
+					err=runSandbox(self.name)
+					if not err then return end
+				end
+				
+				if string.sub(err,-5)~="abort" and not cor then
 					minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
 				end
+				
+				
 				self.running = 0; -- stop execution
 				
 				if string.find(err,"stack overflow") then

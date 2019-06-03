@@ -145,6 +145,7 @@ local help_pages = {
 		"  7. [TECHNIC FUNCTIONALITY]",
 		"  8. [CRYPTOGRAPHY]",
 		"  9. [PUZZLE]",
+		"  10.[COROUTINES] - easier alternative to finite state machines",
 	},
 	
 	["MOVEMENT DIGGING PLACING NODE SENSING"] = {
@@ -300,7 +301,21 @@ local help_pages = {
 		"  count_objects(pos,radius)",
 		"  pdata contains puzzle data like .triggers and .gamedata",
 		"  add_particle(def)"
-	}
+	},
+	
+		["COROUTINES"] = {
+		"back to [Commands reference]",
+		"COROUTINES","",
+		"robot can run code using lua coroutines. To enable this mode just put the word",
+		"coroutine in the first 32 characters of your program. Example: ", "",
+		" --testing program for coroutine",
+		"   for i = 1,5 do ",
+		"       say(i); dig.forward(); move.forward()",
+		"       pause()",
+		"   end",
+	},
+
+	
 	
 }
 for k,v in pairs(help_pages) do
