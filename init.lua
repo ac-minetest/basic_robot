@@ -899,7 +899,9 @@ local function init_robot(obj)
 	obj:set_properties({nametag = "[" .. name.."]",nametag_color = "LawnGreen"});
 	obj:set_armor_groups({fleshy=0})
 	
-	initSandbox ( name )
+	if not basic_robot.data[name].cor then
+		initSandbox ( name )
+	end
 end
 
 minetest.register_entity("basic_robot:robot",{
