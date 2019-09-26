@@ -899,7 +899,7 @@ local function init_robot(obj)
 	obj:set_properties({nametag = "[" .. name.."]",nametag_color = "LawnGreen"});
 	obj:set_armor_groups({fleshy=0})
 	
-	if not basic_robot.data[name].cor then
+	if not basic_robot.data[name].sandbox then
 		initSandbox ( name )
 	end
 end
