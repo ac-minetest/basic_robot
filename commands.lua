@@ -825,6 +825,84 @@ basic_robot.commands.craft = function(item, mode, idx,amount, name)
 	return true
 end
 
+
+--pathfinding: find_path, walk_path
+basic_robot.commands.find_path = function(name,pos2)
+	local obj = basic_robot.data[name].obj;
+	local pos1 = obj:getpos();
+	
+	if (pos1.x-pos2.x)^2+(pos1.y-pos2.y)^2+(pos1.z-pos2.z)^2> 50^2 then 
+		return nil,"2: distance too large" 
+	end
+	check_operations(name,6,true)
+	local data = basic_robot.data[name]
+	energy = data.menergy or 0; -- machine energy
+	if energy<1 then 
+		return nil,"1: not enough energy" 
+	end
+	data.menergy = energy - 1
+	--{current pathnode, path}
+	
+	--start position is very sensitive, noninteger coordinates do not seem to work
+	local round = math.floor 
+	pos1.x = pos1.x>0 and round(pos1.x+0.5) or -round(-pos1.x+0.5)
+	pos1.y = pos1.y>0 and round(pos1.y+0.5) or -round(-pos1.y+0.5)
+	pos1.z = pos1.z>0 and round(pos1.z+0.5) or -round(-pos1.z+0.5)
+	
+	--TODO: tweak parameters, minetest find_path seems sometimes buggy
+	local path = minetest.find_path(pos1,pos2,10,1,1,"Dijkstra"); -- pos1,pos2, search_distance, max_jump, max_drop
+	basic_robot.data[name].pathdata = {1,path}
+
+	if path then return #path else return nil end -- return length of found path or nil
+end
+
+basic_robot.commands.walk_path = function(name)
+	check_operations(name,2,true)
+	
+	local pathdata = basic_robot.data[name].pathdata;
+	if not pathdata then return nil end
+	local path = pathdata[2];
+	if not path then return 0 end
+	
+	local idx = pathdata[1];
+	if idx > #path then return 0 end -- reached end of path
+	
+	local pos2 = path[idx]
+	local obj = basic_robot.data[name].obj;
+	local pos1 = obj:getpos();
+	
+	local ndist = (pos1.x-pos2.x)^2+(pos1.y-pos2.y)^2+(pos1.z-pos2.z)^2
+	if ndist> 4 then return -ndist end -- too far away from next node
+	
+	--turn in correct direction according to movement
+	pos1.x = pos2.x-pos1.x; pos1.z = pos2.z-pos1.z
+	local yaw = 0
+	if math.abs(pos1.x)> math.abs(pos1.z) then
+		if pos1.x>0 then
+			yaw = 0;
+			-- {1,0}
+		else
+			yaw = math.pi;
+			-- {-1,0}
+		end
+	else
+		if pos1.z>0 then
+			-- {0,1}
+			yaw = math.pi/2
+		else
+			-- {0,-1}
+			yaw = -math.pi/2
+		end
+	end
+	yaw = yaw - math.pi/2
+	obj:setyaw(yaw);
+	
+	pathdata[1] = idx + 1 -- target next node
+	obj:moveto(pos2, true)
+	
+	return #path-idx+1 -- return remaining length of path
+end
+
 --FORMS
 basic_robot.commands.show_form = function(name, playername, form)
 	minetest.show_formspec(playername, "robot_form".. name, form)
@@ -1474,13 +1552,3 @@ end
  
   
  -- code for act borrowed from: https://github.com/minetest-mods/pipeworks/blob/fa4817136c8d1e62dafd6ab694821cba255b5206/wielder.lua, line 372
- 
- 
- 
- 
- 
- 
- 
- 
- 
-
