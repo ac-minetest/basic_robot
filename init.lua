@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2019/06/03a";
+basic_robot.version = "2019/09/27a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -561,7 +561,7 @@ end
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_c_", "_G", "while%(", "while{", "pcall","%.%."} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_c_", "_G", "while%(", "while{", "pcall","%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -650,7 +650,6 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	--]]
 	
 	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-	script="_c_ = 0; " .. script;
 
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. call_limit .. 
@@ -708,9 +707,14 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 		i1 = i2+1;
 	end
 	ret[#ret+1] = string.sub(script,i1);
-
 	script = table.concat(ret,_increase_ccounter)
-	return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
+	
+	-- must reset ccounter when paused, but user should not be able to force reset by modifying pause!
+	-- (suggestion about 'pause' by Kimapr, 09/26/2019)
+	
+	return "_c_ = 0 local _pause_ = pause pause = function() _c_ = 0; _pause_() end " .. script;
+	
+	--return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
 
 
