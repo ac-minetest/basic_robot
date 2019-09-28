@@ -907,8 +907,9 @@ local function init_robot(obj, resetSandbox)
 	obj:set_properties({infotext = "robot " .. name});
 	obj:set_properties({nametag = "[" .. name.."]",nametag_color = "LawnGreen"});
 	obj:set_armor_groups({fleshy=0})
-	
+
 	if resetSandbox then initSandbox ( name ) end
+
 end
 
 minetest.register_entity("basic_robot:robot",{
