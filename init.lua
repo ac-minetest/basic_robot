@@ -25,7 +25,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2019/06/03a";
+basic_robot.version = "2019/09/27a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -217,6 +217,13 @@ function getSandboxEnv (name)
 				return commands.display_text(obj,text,linesize,size)
 			end,
 			
+			find_path = function(pos) -- compute path
+				return commands.find_path(name,pos)
+			end,
+
+			walk_path = function() -- walk to next node of path
+				return commands.walk_path(name)
+			end,
 		},
 
 		machine = {-- adds technic like functionality to robots: power generation, smelting, grinding, compressing
@@ -554,7 +561,7 @@ end
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_c_", "_G", "while%(", "while{", "pcall","%.%."} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_c_", "_G", "while%(", "while{", "pcall","%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -635,8 +642,6 @@ end
 
 -- COMPILATION
 
---todo: 2018/12 this suddenly stopped working, wtf??
-
 preprocess_code = function(script, call_limit)  -- version 07/24/2018
 
 	--[[ idea: in each local a = function (args) ... end insert counter like:
@@ -645,7 +650,6 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	--]]
 	
 	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-	script="_c_ = 0; " .. script;
 
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. call_limit .. 
@@ -703,9 +707,14 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 		i1 = i2+1;
 	end
 	ret[#ret+1] = string.sub(script,i1);
-
 	script = table.concat(ret,_increase_ccounter)
-	return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
+	
+	-- must reset ccounter when paused, but user should not be able to force reset by modifying pause!
+	-- (suggestion about 'pause' by Kimapr, 09/26/2019)
+	
+	return "_c_ = 0 local _pause_ = pause pause = function() _c_ = 0; _pause_() end " .. script;
+	
+	--return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
 
 
@@ -882,7 +891,7 @@ end
 
 
 
-local function init_robot(obj)
+local function init_robot(obj, resetSandbox)
 	
 	local self = obj:get_luaentity();
 	local name = self.name; -- robot name
@@ -898,10 +907,9 @@ local function init_robot(obj)
 	obj:set_properties({infotext = "robot " .. name});
 	obj:set_properties({nametag = "[" .. name.."]",nametag_color = "LawnGreen"});
 	obj:set_armor_groups({fleshy=0})
-	
-	if not basic_robot.data[name].sandbox then
-		initSandbox ( name )
-	end
+
+	if resetSandbox then initSandbox ( name ) end
+
 end
 
 minetest.register_entity("basic_robot:robot",{
@@ -945,7 +953,7 @@ minetest.register_entity("basic_robot:robot",{
 			self.authlevel = data.authlevel;
 			
 			self.spawnpos = {x=data.spawnpos.x,y=data.spawnpos.y,z=data.spawnpos.z};
-			init_robot(self.object);
+			init_robot(self.object, false); --  do not reset sandbox to keep all variables, just wake up
 			self.running = 1;
 			
 			
@@ -1067,7 +1075,7 @@ local spawn_robot = function(pos,node,ttl)
 	local name = owner..id;
 	
 
-	if id <= 0 then -- just compile code and run it, no robot spawn
+	if id <= 0 then -- just compile code and run it, no robot entity spawn
 		local codechange = false;
 		if meta:get_int("codechange") == 1 then
 			meta:set_int("codechange",0);
@@ -1076,7 +1084,7 @@ local spawn_robot = function(pos,node,ttl)
 		-- compile code & run it
 		local err;
 		local data = basic_robot.data[name];
-		if codechange or (not data) then 
+		if codechange or (not data) then -- reset all, sandbox will change too
 			basic_robot.data[name] = {}; data = basic_robot.data[name];
 			meta:set_string("infotext",minetest.get_gametime().. " code changed ")
 			data.owner = owner;
@@ -1140,10 +1148,10 @@ local spawn_robot = function(pos,node,ttl)
 			return
 		end
 	return
-	end
+	end -- end of entityless robot code
 
 	
-	-- if robot already exists do nothing
+	-- if robot entity already exists refresh it
 	if basic_robot.data[name] and basic_robot.data[name].obj then
 		minetest.chat_send_player(owner,"#ROBOT: ".. name .. " already active, removing ")
 		basic_robot.data[name].obj:remove();
@@ -1180,7 +1188,7 @@ local spawn_robot = function(pos,node,ttl)
 	data.spawnpos  = {x=pos.x,y=pos.y-1,z=pos.z};
 	
 	
-	init_robot(obj); -- set properties, init sandbox
+	init_robot(obj,true); -- set properties, resetSandbox = true
 	
 	local self = obj:get_luaentity();
 	local err = setCode( self.name, self.code ); -- compile code
@@ -1626,7 +1634,7 @@ minetest.register_on_chat_message(
 function(name, message)
 	local hidden = false;
 	if string.sub(message,1,1) == "\\" then hidden = true; message = string.sub(message,2) end
-	local listeners = basic_robot.data.listening;
+	local listeners = basic_robot.data.listening; -- which robots are listening?
 	for pname,_ in pairs(listeners) do
 		local data = basic_robot.data[pname];
 		data.listen_msg = message;
