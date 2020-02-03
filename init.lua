@@ -834,10 +834,11 @@ local robot_spawner_update_form = function (pos, mode)
 		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]".. 
 		"button_exit[-0.25, 0.75;1.25,1;spawn;START]"..
 		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
-			 "field[0.25,3.;1.,1;id;id;"..id.."]"..
-			 "button[-0.25, 3.6;1.25,1;inventory;storage]"..
-		     "button[-0.25, 4.6;1.25,1;library;library]"..
-		     "button[-0.25, 5.6;1.25,1;help;help]";
+		     "button[-0.25, 2.75;1.25,1;reset;RESET]"..
+			 "field[0.25,4.;1.,1;id;id;"..id.."]"..
+			 "button[-0.25, 4.6;1.25,1;inventory;storage]"..
+		     "button[-0.25, 5.6;1.25,1;library;library]"..
+		     "button[-0.25, 6.6;1.25,1;help;help]";
 			 
 	else -- when robot clicked
 		form  = 
@@ -1264,8 +1265,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		
 		local name = sender:get_player_name();
 		if minetest.is_protected(pos,name) then return end
-		
-		if fields.OK then
+
+        local save = function()
 			local meta = minetest.get_meta(pos);
 			
 			if fields.code then 
@@ -1296,6 +1297,29 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			end
 	
 			robot_spawner_update_form(pos);
+        end
+
+        local robotstop = function()
+			local meta = minetest.get_meta(pos);
+			local owner = meta:get_string("owner");
+			local id = meta:get_int("id");
+			local name = owner..id;
+		
+			if id<=0 then meta:set_int("codechange",1) end
+			
+			if not basic_robot.data[name] then return end
+			if basic_robot.data[name].obj then
+				basic_robot.data[name].obj:remove();
+				basic_robot.data[name].obj = nil;
+			end
+        end
+		
+        local robotstart = function()
+			spawn_robot(pos,0,0);
+        end
+
+		if fields.OK then
+            save()
 			return
 		end
 		
@@ -1325,26 +1349,21 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		end
 		
 		if fields.spawn then
-			spawn_robot(pos,0,0);
+            robotstart()
 			return
 		end
 		
 		if fields.despawn then
-			
-			local meta = minetest.get_meta(pos);
-			local owner = meta:get_string("owner");
-			local id = meta:get_int("id");
-			local name = owner..id;
-		
-			if id<=0 then meta:set_int("codechange",1) end
-			
-			if not basic_robot.data[name] then return end
-			if basic_robot.data[name].obj then
-				basic_robot.data[name].obj:remove();
-				basic_robot.data[name].obj = nil;
-			end
+			robotstop()
 			return
 		end
+
+        if fields.reset then
+            save()
+            robotstop()
+            robotstart()
+            return
+        end
 		
 		if fields.inventory then
 			local list_name = "nodemeta:"..pos.x..','..pos.y..','..pos.z ;
