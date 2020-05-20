@@ -321,12 +321,19 @@ function getSandboxEnv (name)
 					return nil
 				end
 			end,
-			
 			write = function(i,title,text)
-				if i<=0 or i > 32 then return nil end
+				if i<=0 or i > 16 then return nil end
 				local inv = minetest.get_meta(basic_robot.data[name].spawnpos):get_inventory();
-				local stack = basic_robot.commands.write_book(basic_robot.data[name].owner,title,text);
-				if stack then inv:set_stack("library", i, stack) end
+				-- Make sure there is a book in the target slot before putting
+				-- a new one there so we don't magically conjure a book by
+				-- writing to an empty slot.
+				local old_stack = inv:get_stack("library", i)
+				if not old_stack or string.sub(old_stack:get_name(), 1, #"default:book") ~= "default:book" then
+					minetest.chat_send_player(name,"#ROBOT no book in position "..i.." for writing.")
+				else
+					local stack = basic_robot.commands.write_book(basic_robot.data[name].owner,title,text);
+					if stack then inv:set_stack("library", i, stack) end
+				end
 			end
 		},
 		
