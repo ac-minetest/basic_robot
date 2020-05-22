@@ -83,8 +83,11 @@ basic_robot.commands.move = function(name,dir)
 	-- can move through walkable nodes
 	if minetest.registered_nodes[minetest.get_node(pos).name].walkable then return end
 	-- up; no levitation!
+	-- but a ladder in the target node will support a player, so also allow it to support a robot
 	if minetest.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name == "air" and
-		minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" then 
+		minetest.get_node({x=pos.x,y=pos.y-2,z=pos.z}).name == "air" and
+		minetest.get_node({x=pos.x,y=pos.y,z=pos.z}).name ~= "default:ladder_wood" and
+		minetest.get_node({x=pos.x,y=pos.y,z=pos.z}).name ~= "default:ladder_steel" then
 		return false
 	end
 
