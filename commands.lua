@@ -444,11 +444,11 @@ basic_robot.commands.write_book = function(name,title,text) -- returns itemstack
 	local data = {} 
 	
 	if title == "" or not title then title = "program book "..minetest.get_gametime() end
-	data.title = title or ""
+	data.title = title
 	data.text = text or ""
 	data.text_len = #data.text
 	data.page = 1
-	data.description = title or ""
+	data.description = "\""..title.."\" by "..name
 	data.page_max = math.ceil((#data.text:gsub("[^\n]", "") + 1) / lpp)
 	data.owner = name
 	--local data_str = minetest.serialize(data) -- pre 0.4.16
