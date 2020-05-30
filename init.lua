@@ -998,7 +998,7 @@ minetest.register_entity("basic_robot:robot",{
 					if not err then return end
 				end
 				
-				if string.sub(err,-5)~="abort" and not cor then
+				if string.sub(err,-5)~="abort" then
 					minetest.chat_send_player(self.owner,"#ROBOT ERROR : " .. err) 
 				end
 				
