@@ -1378,6 +1378,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				libform = "label[4.25,0;Library position is protected]";
 			end
 				
+			local book_background = ""
 			local libnodename = minetest.get_node(libpos).name;
 			if libnodename~="basic_robot:spawner" then 
 				if libnodename == "ignore" then
@@ -1389,6 +1390,11 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 				local inv = minetest.get_meta(libpos):get_inventory();
 				local text = "";
 				for i=1,16 do
+					-- background image showing these slots are for books only
+					local x = 4.25 + (i-1) % 4
+					local y = 0 + math.floor((i-1) / 4)
+					book_background = book_background .. "image["..x..","..y..";1,1;default_bookshelf_slot.png]"
+
 					local itemstack = inv:get_stack("library", i);
 					local data = itemstack:get_meta():to_table().fields -- 0.4.16
 					--local data = minetest.deserialize(itemstack:get_metadata()) -- pre 0.4.16
@@ -1407,6 +1413,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 			"field[0.25,3.5;3.25,1;libpos;Position of spawner used as library;"..libposstring.."]"..
 			"button_exit[3.25,3.2;1.,1;OK;SAVE]"..
 			libform..
+			book_background..
 			"list[current_player;main;0,4.25;8,4;]";
 			minetest.show_formspec(sender:get_player_name(), "robot_library_"..minetest.pos_to_string(pos), form);
 		end
@@ -1691,6 +1698,10 @@ minetest.register_node("basic_robot:spawner", {
 		local meta = minetest.get_meta(pos);
 		local privs = minetest.get_player_privs(player:get_player_name());
 		if minetest.is_protected(pos, player:get_player_name()) and not privs.privs then return 0 end 
+		-- Only books go in the library
+		if listname == "library" and minetest.get_item_group(stack:get_name(), "book") == 0 then
+			return 0
+		end
 		return stack:get_count();
 	end,
 	
