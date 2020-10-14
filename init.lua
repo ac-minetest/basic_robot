@@ -4,7 +4,7 @@
 basic_robot = {};
 ------  SETTINGS  --------
 basic_robot.call_limit = {50,200,1500,10^9}; -- how many execution calls per script run allowed, for auth levels 0,1,2 (normal, robot, puzzle, admin)
-basic_robot.count = {2,4,16,128} -- how many robots player can have
+basic_robot.count = {2,6,16,128} -- how many robots player can have
 
 basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
 basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
@@ -15,6 +15,7 @@ basic_robot.maxoperations = 10; -- how many operations (dig, place,move,...,gene
 basic_robot.dig_require_energy = true; -- does robot require energy to dig stone?
 
 basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
+    ["moreblocks:circular_saw"] = true,
 	["craft_guide:sign_wall"] = true,
 	["basic_machines:battery_0"] = true,
 	["basic_machines:battery_1"] = true,
@@ -25,7 +26,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2019/09/27a";
+basic_robot.version = "2020/10/14a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -907,9 +908,8 @@ local function init_robot(obj, resetSandbox)
 	obj:set_properties({infotext = "robot " .. name});
 	obj:set_properties({nametag = "[" .. name.."]",nametag_color = "LawnGreen"});
 	obj:set_armor_groups({fleshy=0})
-
+	
 	if resetSandbox then initSandbox ( name ) end
-
 end
 
 minetest.register_entity("basic_robot:robot",{
@@ -1325,6 +1325,7 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 		end
 		
 		if fields.spawn then
+			minetest.log("action", "basic_robot manual start by " .. name .. " at " .. pos.x .. " " .. pos.y .. " " .. pos.z)
 			spawn_robot(pos,0,0);
 			return
 		end
@@ -1566,6 +1567,14 @@ minetest.register_on_player_receive_fields(
 				end
 				local meta = minetest.get_meta(pos);
 				if not lines then return end
+
+   				if meta:get_int("authlevel") > 1 and name ~= meta:get_string("owner")then
+					local privs = minetest.get_player_privs(name); -- only admin can edit admin robot code
+					if not privs.privs then
+						return
+					end
+				end
+
 				local code = table.concat(lines,"\n");
 				meta:set_string("code",code);
 				basic_robot.editor[name].lines = {};
