@@ -141,7 +141,7 @@ basic_robot.commands.dig = function(name,dir)
 			local data = basic_robot.data[name];
 			local energy = (data.menergy or 0) - digcost;
 			if energy<0 then 
-				error("need " .. digcost .. " energy to dig " .. nodename .. ". Use machine.generate to get some energy."); 
+				error("need " .. digcost .. " energy to dig " .. nodename .. ". Use machine.generate_power to get some energy.");
 			end
 			data.menergy = energy;
 		end
