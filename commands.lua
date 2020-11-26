@@ -1152,7 +1152,7 @@ basic_robot.commands.machine = {
 		
 		
 		energy = data.menergy or 0;
-		if amount>energy then return nil,"energy too low" end
+		if amount>energy or amount<0 then return nil,"energy too low" end
 		
 		if not tdata.menergy then tdata.menergy = 0 end
 		tdata.menergy = tdata.menergy + amount
