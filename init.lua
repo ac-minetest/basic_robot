@@ -26,7 +26,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2020/10/14a";
+basic_robot.version = "2020/11/27a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -74,7 +74,7 @@ function getSandboxEnv (name)
 				return
 			end
 			local yaw = obj:get_yaw();
-			obj:set_velocity({x=v*math.cos(yaw),y=0,z=v*math.sin(yaw)});
+			obj:set_velocity({x=-v*math.sin(yaw),y=0,z=v*math.cos(yaw)});
 		end,
 		
 		turn = {
