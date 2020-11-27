@@ -444,8 +444,9 @@ basic_robot.commands.write_book = function(name,title,text) -- returns itemstack
 	local data = {} 
 	
 	if title == "" or not title then title = "program book "..minetest.get_gametime() end
-	data.title = title or ""
-	data.text = text or ""
+	if text == "" or not text then text = "empty" end
+	data.text = text
+	data.title = title
 	data.text_len = #data.text
 	data.page = 1
 	data.description = title or ""
