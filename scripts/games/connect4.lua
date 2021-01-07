@@ -1,6 +1,7 @@
 -- CONNECT, coded in 20 minutes by rnd
 if not data then
-	m=8;n=8;turn = 0; num = 4;
+	m=10;n=10;turn = 0; num = 5;
+--	m=3;n=3;turn = 0; num = 3;
 	self.spam(1);t0 = _G.minetest.get_gametime();
 	spawnpos = self.spawnpos() -- place mines
 	state = 0; -- 0 signup 1 game
@@ -34,7 +35,7 @@ if not data then
 		return c1
 	end
 	
-	self.label("CONNECT 4 : GREEN starts play. 2 players punch to join game.")		
+	self.label("TRY TO GET FIRST " .. num .. " IN A ROW! : GREEN starts play. 2 players punch to join game.")		
 end
 
 event = keyboard.get();
@@ -43,9 +44,14 @@ if event then
 	if x<1 or x>m or z<1 or z>n then
 	elseif event.type == 2 then --if event.type == 2 then
 			if state == 0 then
-				if #players<2 then players[#players+1] = event.puncher
+				if #players<2 then players[#players+1] = event.puncher -- 1 is green, turn 0 = green
 				else state = 1 end
 				if #players==2 then state = 1 end
+			end
+			if event.puncher == players[1] then -- green
+				if turn~=0 then return end -- ignore if not player turn
+			else
+				if turn~=1 then return end
 			end
 			keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},4+turn);
 			data[x][z] = 4+turn;

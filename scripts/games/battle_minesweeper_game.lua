@@ -1,3 +1,5 @@
+-- battle minesweeper, 2 player
+
 if not data then
 	m=10;n=10;
 	players = {};

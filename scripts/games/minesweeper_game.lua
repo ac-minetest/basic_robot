@@ -3,7 +3,7 @@ if not data then
 	m=24;n=22; minescount = m*n/5;
 	reward = 30;
 
-	if not find_player(4) then error("minesweeper: no players near") end
+	if not find_player(6) then error("minesweeper: no players near") end
 	
 	self.spam(1)	
 	t0 = _G.minetest.get_gametime();
@@ -20,6 +20,7 @@ if not data then
 		end
 	end	end
 	puzzle.set_node({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z+1},{name = "basic_robot:button80FF80"})
+	puzzle.set_node({x=spawnpos.x,y=spawnpos.y,z=spawnpos.z+1},{name = "basic_robot:button80FF80"})
 
 	get_mine_count = function(i,j)
 		if i<0 or i>m+1 or j<0 or j>n+1 then return 0 end; count = 0
@@ -48,6 +49,10 @@ if event then
 	if x<1 or x>m or z<1 or z>n then
 		if x == 0 and z == 1 then 
 			local count = chk_mines(); 
+			if count>minescount/2 then
+				say("fail, more than 50% of mines remaining ")
+				return 
+			end 
 			if count == 0 then 
 				t0 = _G.minetest.get_gametime() - t0;
 				say("congratulations! " .. event.puncher .. " discovered all mines in " .. t0 .. " s")

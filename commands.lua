@@ -19,7 +19,7 @@ local pi = math.pi;
 
 local function pos_in_dir(obj, dir) -- position after we move in specified direction
 	local yaw = obj:getyaw();
-	local pos = obj:getpos();
+	local pos = obj:get_pos();
 	
 	if dir == 1 then -- left 
 		yaw = yaw + pi/2;
@@ -88,7 +88,7 @@ basic_robot.commands.move = function(name,dir)
 		return false
 	end
 
-	obj:moveto(pos, true)
+	obj:move_to(pos, true)
 	
 	-- sit and stand up for model - doesnt work for overwriten obj export
 	-- if dir == 5 then-- up
@@ -113,7 +113,8 @@ end
 
 basic_robot.digcosts = { -- 1 energy = 1 coal
 	["default:stone"] = 1/25,
-	["default:cloud"] = 10^8,
+	["gloopblocks:pumice_cooled"] = 1/25,
+	["default:cloud"] = 10^9,
 }
 
 
@@ -273,7 +274,7 @@ basic_robot.commands.pickup = function(r,name)
 	if r>8 then return false end
 	
 	check_operations(name,4,true)
-	local pos = basic_robot.data[name].obj:getpos();
+	local pos = basic_robot.data[name].obj:get_pos();
 	local spos = basic_robot.data[name].spawnpos; -- position of spawner block
 	local meta = minetest.get_meta(spos);
 	local inv = minetest.get_meta(spos):get_inventory();
@@ -382,8 +383,8 @@ basic_robot.commands.attack = function(name, target) -- attack range 4, damage 5
 	local tplayer = minetest.get_player_by_name(target);
 	if not tplayer then return false end
 	local obj = basic_robot.data[name].obj;
-	local pos = obj:getpos();
-	local tpos = tplayer:getpos();
+	local pos = obj:get_pos();
+	local tpos = tplayer:get_pos();
 	
 	if math.abs(pos.x-tpos.x)> reach or math.abs(pos.y-tpos.y)> reach or math.abs(pos.z-tpos.z)> reach then
 		return false
@@ -400,8 +401,8 @@ basic_robot.commands.grab = function(name,target)
 	local tplayer = minetest.get_player_by_name(target);
 	if not tplayer then return false end
 	local obj = basic_robot.data[name].obj;
-	local pos = obj:getpos();
-	local tpos = tplayer:getpos();
+	local pos = obj:get_pos();
+	local tpos = tplayer:get_pos();
 
 	if math.abs(pos.x-tpos.x)> reach or math.abs(pos.y-tpos.y)> reach or math.abs(pos.z-tpos.z)> reach then
 		return false
@@ -444,8 +445,9 @@ basic_robot.commands.write_book = function(name,title,text) -- returns itemstack
 	local data = {} 
 	
 	if title == "" or not title then title = "program book "..minetest.get_gametime() end
-	data.title = title or ""
-	data.text = text or ""
+	if text == "" or not text then text = "empty" end
+	data.text = text
+	data.title = title
 	data.text_len = #data.text
 	data.page = 1
 	data.description = title or ""
@@ -568,6 +570,31 @@ basic_robot.commands.activate = function(name,mode, dir)
 	return true
 end
 
+local write_keyevent = function(data,pos, puncher,type)
+	local keyevent = data.keyevent;
+	if not keyevent then -- init
+		data.keyevent = {5,1,1,{}} -- how many events buffer holds, input idx, output idx, buffer data
+		keyevent = data.keyevent;
+	end
+	
+	local iidx = keyevent[2]; -- input idx
+	-- write event at input idx
+	keyevent[4][iidx] = {x=pos.x,y=pos.y,z=pos.z, puncher = puncher, type = type} 
+	
+	local oidx = keyevent[3]; -- output idx
+	
+	iidx=iidx+1; if iidx>keyevent[1] then iidx = 1 end -- advance idx for next input write
+	keyevent[2] = iidx
+	
+	if iidx == oidx then -- old event was overwritten, lets increase output idx
+		oidx = oidx+1
+		if oidx>keyevent[1] then oidx = 1 end
+		keyevent[3] = oidx
+	end
+	
+	
+end
+
 
 local register_robot_button = function(R,G,B,type)
 	minetest.register_node("basic_robot:button"..R..G..B, 
@@ -587,7 +614,9 @@ local register_robot_button = function(R,G,B,type)
 			local meta = minetest.get_meta(ppos);
 			local name = meta:get_string("name");
 			local data = basic_robot.data[name];
-			if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+			if data then 
+				write_keyevent(data,pos, player:get_player_name(),type)
+			end
 		end
 		
 	})
@@ -600,6 +629,7 @@ minetest.register_node("basic_robot:button"..number,
 	tiles = {"robot_button".. number .. ".png"},
 	inventory_image = "robot_button".. number .. ".png",
 	wield_image = "robot_button".. number .. ".png",
+	paramtype2 = "facedir",
 
 	is_ground_content = false,
 	groups = {cracky=3},
@@ -611,7 +641,9 @@ minetest.register_node("basic_robot:button"..number,
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
 		local data = basic_robot.data[name];
-		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+		if data then 
+			write_keyevent(data,pos, player:get_player_name(),type)
+		end
 	end		
 	})
 end
@@ -626,6 +658,7 @@ minetest.register_node("basic_robot:button_"..number,
 	wield_image = string.format("%03d",number).. ".png",
 	is_ground_content = false,
 	groups = {cracky=3},
+	paramtype2 = "facedir",
 	on_punch = function(pos, node, player)
 		local name = player:get_player_name(); if name==nil then return end
 		local round = math.floor;
@@ -634,7 +667,10 @@ minetest.register_node("basic_robot:button_"..number,
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
 		local data = basic_robot.data[name];
-		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} end
+		if data then 
+			write_keyevent(data,pos, player:get_player_name(),type)
+			--data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} 
+		end
 	end		
 	})
 end
@@ -656,7 +692,10 @@ minetest.register_node("basic_robot:button_"..number,
 		local meta = minetest.get_meta(ppos);
 		local name = meta:get_string("name");
 		local data = basic_robot.data[name];
-		if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = number} end
+		if data then 
+			write_keyevent(data,pos, player:get_player_name(),type)
+			--data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = number} 
+		end
 	end		
 	})
 end
@@ -693,14 +732,21 @@ register_robot_button_custom(285,"puzzle_checker")
 
 -- interactive button for robot: place robot on top of protector to intercept events
 
+local dout = minetest.chat_send_all
+
 basic_robot.commands.keyboard = {
 
-	get = function(name)
+	get = function(name) -- read keyboard event 
 		local data = basic_robot.data[name];
-		if data.keyboard then 
-			local keyboard = data.keyboard;
-			local event = {x=keyboard.x,y=keyboard.y,z=keyboard.z, puncher = keyboard.puncher, type = keyboard.type};
-			data.keyboard = nil;
+		if data.keyevent then 
+			local keyevent = data.keyevent;
+			local oidx = keyevent[3];
+			local iidx = keyevent[2]; 
+			if oidx == iidx then return nil end --just read past last written event, nothing to read anymore
+			local event = keyevent[4][oidx];
+			-- move oidx (read position ) to newer event
+			oidx = oidx+1; if oidx>keyevent[1] then oidx = 1 end 
+			keyevent[3] = oidx
 			return event
 		else 
 			return nil
@@ -829,7 +875,7 @@ end
 --pathfinding: find_path, walk_path
 basic_robot.commands.find_path = function(name,pos2)
 	local obj = basic_robot.data[name].obj;
-	local pos1 = obj:getpos();
+	local pos1 = obj:get_pos();
 	
 	if (pos1.x-pos2.x)^2+(pos1.y-pos2.y)^2+(pos1.z-pos2.z)^2> 50^2 then 
 		return nil,"2: distance too large" 
@@ -869,7 +915,7 @@ basic_robot.commands.walk_path = function(name)
 	
 	local pos2 = path[idx]
 	local obj = basic_robot.data[name].obj;
-	local pos1 = obj:getpos();
+	local pos1 = obj:get_pos();
 	
 	local ndist = (pos1.x-pos2.x)^2+(pos1.y-pos2.y)^2+(pos1.z-pos2.z)^2
 	if ndist> 4 then return -ndist end -- too far away from next node
@@ -1304,7 +1350,7 @@ local cmd_get_player = function(data,pname) -- return player for further manipul
 	local player = minetest.get_player_by_name(pname)
 	if not player then error("player does not exist"); return end
 	local spos = data.spawnpos;
-	local ppos =  player:getpos();
+	local ppos =  player:get_pos();
 	if not is_same_block(ppos,spos) then error("can not get player in another protection zone") return end
 	return player	
 end
@@ -1313,7 +1359,7 @@ local cmd_get_player_inv = function(data,pname)
 	local player = minetest.get_player_by_name(pname)
 	if not player then return end
 	local spos = data.spawnpos;
-	local ppos =  player:getpos();
+	local ppos =  player:get_pos();
 	if not is_same_block(ppos,spos) then error("can not get player in another protection zone") return end
 	return player:get_inventory();
 end
@@ -1472,7 +1518,7 @@ function Vplayer:new(name) -- constructor
 end
  
  -- functions
- function Vplayer:getpos() return self.obj:getpos() end
+ function Vplayer:get_pos() return self.obj:get_pos() end
  function Vplayer:remove() end
  function Vplayer:setpos() end
  function Vplayer:move_to() end

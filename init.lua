@@ -26,7 +26,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2020/10/14a";
+basic_robot.version = "2020/11/27a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -69,12 +69,12 @@ function getSandboxEnv (name)
 		boost = function(v) 
 			if math.abs(v)>2 then v = 0 end; local obj = basic_robot.data[name].obj;
 			if v == 0 then 
-				local pos = obj:getpos(); pos.x = math.floor(pos.x+0.5);pos.y = math.floor(pos.y+0.5); pos.z = math.floor(pos.z+0.5);
+				local pos = obj:get_pos(); pos.x = math.floor(pos.x+0.5);pos.y = math.floor(pos.y+0.5); pos.z = math.floor(pos.z+0.5);
 				obj:setpos(pos); obj:set_velocity({x=0,y=0,z=0});
 				return
 			end
 			local yaw = obj:get_yaw();
-			obj:set_velocity({x=v*math.cos(yaw),y=0,z=v*math.sin(yaw)});
+			obj:set_velocity({x=-v*math.sin(yaw),y=0,z=v*math.cos(yaw)});
 		end,
 		
 		turn = {
@@ -97,7 +97,7 @@ function getSandboxEnv (name)
 		end,
 		
 		self = {
-			pos = function() return basic_robot.data[name].obj:getpos() end,
+			pos = function() return basic_robot.data[name].obj:get_pos() end,
 			spawnpos = function() local pos = basic_robot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
 			name = function() return name end,
 			operations = function() return basic_robot.data[name].operations end,
@@ -171,7 +171,7 @@ function getSandboxEnv (name)
 			
 			fire = function(speed, pitch,gravity, texture, is_entity) -- experimental: fires an projectile
 				local obj = basic_robot.data[name].obj;
-				local pos = obj:getpos();
+				local pos = obj:get_pos();
 				local yaw = obj:getyaw()+ math.pi/2;
 				pitch = pitch*math.pi/180
 				local velocity = {x=speed*math.cos(yaw)*math.cos(pitch), y=speed*math.sin(pitch),z=speed*math.sin(yaw)*math.cos(pitch)};
@@ -253,16 +253,16 @@ function getSandboxEnv (name)
 		find_nodes = 
 			function(nodename,r) 
 				if r>8 then return false end
-				local q = minetest.find_node_near(basic_robot.data[name].obj:getpos(), r, nodename);
+				local q = minetest.find_node_near(basic_robot.data[name].obj:get_pos(), r, nodename);
 				if q==nil then return false end
-				local p = basic_robot.data[name].obj:getpos()
+				local p = basic_robot.data[name].obj:get_pos()
 				return math.sqrt((p.x-q.x)^2+(p.y-q.y)^2+(p.z-q.z)^2)
 			end, -- in radius around position
 		
 		find_player = 
 			function(r,pos) 
-				pos = pos or basic_robot.data[name].obj:getpos();
-				if r>10 then return false end
+				pos = pos or basic_robot.data[name].obj:get_pos();
+				if r<0 or r>10 then return false end
 				local objects =  minetest.get_objects_inside_radius(pos, r);
 				local plist = {};
 				for _,obj in pairs(objects) do
@@ -277,7 +277,7 @@ function getSandboxEnv (name)
 		player = {
 			getpos = function(name) 
 				local player = minetest.get_player_by_name(name); 
-				if player then return player:getpos() else return nil end 
+				if player then return player:get_pos() else return nil end 
 			end,
 			
 			connected = function()
@@ -536,7 +536,7 @@ function getSandboxEnv (name)
 			set_triggers = function(triggers) commands.puzzle.set_triggers(pdata,triggers) end, -- FIX THIS!
 			check_triggers = function(pname) 
 				local player = minetest.get_player_by_name(pname); if not player then return end
-				commands.puzzle.checkpos(pdata,player:getpos(),pname) 
+				commands.puzzle.checkpos(pdata,player:get_pos(),pname) 
 			end,
 			add_particle = function(def) minetest.add_particle(def) end,
 			count_objects = function(pos,radius) return #minetest.get_objects_inside_radius(pos, math.min(radius,5)) end,
@@ -832,7 +832,7 @@ local robot_spawner_update_form = function (pos, mode)
 		"size[9.5,8]" ..  -- width, height
 		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
 		"button[-0.25,7.5;1.25,1;EDIT;EDIT]".. 
-		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]".. 
+		"button[-0.25,-0.25;1.25,1;OK;SAVE]".. 
 		"button_exit[-0.25, 0.75;1.25,1;spawn;START]"..
 		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
 			 "field[0.25,3.;1.,1;id;id;"..id.."]"..
@@ -882,10 +882,10 @@ code_edit_form = function(pos,name)
 	local list = "";
 	for _,line in pairs(lines) do list = list .. minetest.formspec_escape(line) .. "," end
 	local form = "size[12,9.25]" .. "textlist[0,0;12,8;listname;" .. list .. ";"..selection..";false]" .. 
-	"button[10,8;2,1;INSERT;INSERT LINE]" ..
-	"button[10,8.75;2,1;DELETE;DELETE LINE]" ..
-	"button_exit[2,8.75;2,1;SAVE;SAVE CODE]" ..
-	"button[0,8.75;2,1;UPDATE;UPDATE LINE]"..
+	"button[10,8;2.25,1;INSERT;INSERT LINE]" ..
+	"button[10,8.75;2.25,1;DELETE;DELETE LINE]" ..
+	"button_exit[2.25,8.75;2.25,1;SAVE;SAVE CODE]" ..
+	"button[0,8.75;2.25,1;UPDATE;UPDATE LINE] label[4.25,9; LINE " .. selection .."]"..
 	"textarea[0.25,8;10,1;input;;".. input .. "]"
 	return form
 end
@@ -945,6 +945,11 @@ minetest.register_entity("basic_robot:robot",{
 			
 			if not data then
 				--minetest.chat_send_all("#ROBOT INIT:  error. spawn robot again.")
+				self.object:remove(); 
+				return;
+			end
+			
+			if data.object and data.object~=self.object then -- is there another one already?
 				self.object:remove(); 
 				return;
 			end
@@ -1099,7 +1104,7 @@ local spawn_robot = function(pos,node,ttl)
 			if not data.obj then
 				--create virtual robot that reports position and other properties
 				local obj = {};
-				function obj:getpos() return {x=pos.x,y=pos.y,z=pos.z} end
+				function obj:get_pos() return {x=pos.x,y=pos.y,z=pos.z} end
 				function obj:getyaw() return 0 end
 			    function obj:get_luaentity()
 					local luaent = {};
@@ -1280,6 +1285,8 @@ local on_receive_robot_form = function(pos, formname, fields, sender)
 						return
 					end
 				end
+				
+				minetest.chat_send_player(name,"#ROBOT: code saved " .. os.date("%H:%M:%S"))
 				meta:set_string("code", code); meta:set_int("codechange",1)
 			end
 			
@@ -1663,8 +1670,11 @@ minetest.register_node("basic_robot:spawner", {
 	param1=1,
 	walkable = true,
 	alpha = 150,
+
 	after_place_node = function(pos, placer)
-		local meta = minetest.env:get_meta(pos)
+		
+		local meta = minetest.get_meta(pos)
+		--local meta = minetest.env:get_meta(pos) --  THIS WORKS, DOES CHANGING THIS CAUSE META PROBLEM?
 		local owner = placer:get_player_name();
 		meta:set_string("owner", owner); 
 		
@@ -1681,11 +1691,38 @@ minetest.register_node("basic_robot:spawner", {
 		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
 		meta:set_string("libpos",pos.x .. " " .. pos.y .. " " .. pos.z)
 		
+		local inv = meta:get_inventory(); -- spawner inventory
+		inv:set_size("main",32);
+		inv:set_size("library",16); --4*4
+		
 		robot_spawner_update_form(pos);
+		--[[
+		local meta = minetest:get_meta(pos)
+		local owner = placer:get_player_name();
+		meta:set_string("owner", owner); 
+		
+		local authlevel = get_authlevel(placer:get_player_name());
+		
+		meta:set_int("authlevel",authlevel)
+		local sec_hash = minetest.get_password_hash("",authlevel .. owner .. basic_robot.password) -- 'digitally sign' authlevel using password
+		meta:set_string("sec_hash", sec_hash);
+	
+		meta:set_string("code","");
+		meta:set_int("id",1); -- initial robot id
+		meta:set_string("name", placer:get_player_name().."1")
+		
+		meta:set_string("infotext", "robot spawner (owned by ".. placer:get_player_name() .. ")")
+		
+		--WTF: here it reads correct meta but later there is none!!
+		minetest.chat_send_all("D meta info " .. meta:get_string("infotext"))
+		
+		meta:set_string("libpos",pos.x .. " " .. pos.y .. " " .. pos.z)
 
 		local inv = meta:get_inventory(); -- spawner inventory
 		inv:set_size("main",32);
 		inv:set_size("library",16); --4*4
+		robot_spawner_update_form(pos);
+		--]]
 	end,
 
 	mesecons = {effector = {
@@ -1718,6 +1755,7 @@ minetest.register_node("basic_robot:spawner", {
 	end,
 	
 	can_dig = function(pos, player)
+		if not player then return end
 		if minetest.is_protected(pos, player:get_player_name()) then return false end 
 		local meta = minetest.get_meta(pos);
 		if not meta:get_inventory():is_empty("main") or not meta:get_inventory():is_empty("library") then return false end
@@ -1831,9 +1869,9 @@ minetest.register_craftitem("basic_robot:control", {
 			minetest.chat_send_player(owner, "#remote control: compile error " .. CompileError )
 			return
 		end
+		script = preprocess_code(script,basic_robot.call_limit[data.authlevel+1]);
 		
 		setfenv( ScriptFunc, basic_robot.data[name].sandbox )
-		
 		local Result, RuntimeError = pcall( ScriptFunc );
 		if RuntimeError then
 			minetest.chat_send_player(owner, "#remote control: run error " .. RuntimeError )
@@ -1873,7 +1911,7 @@ minetest.register_entity(
 			if (self.oldvel.x~=0 and vel.x==0) or (self.oldvel.y~=0 and vel.y==0) or (self.oldvel.z~=0 and vel.z==0) then -- hit
 				local data = basic_robot.data[self.name];
 				if data then
-					data.fire_pos = self.object:getpos();
+					data.fire_pos = self.object:get_pos();
 				end
 				self.object:remove()
 				return
@@ -1888,7 +1926,7 @@ minetest.register_entity(
 				if not self.state then return nil end
 				local data = basic_robot.data[self.name];
 				if data then
-					data.fire_pos = self.object:getpos();
+					data.fire_pos = self.object:get_pos();
 				end
 				self.object:remove();
 				return nil
