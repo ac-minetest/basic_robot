@@ -18,7 +18,7 @@ end
 local pi = math.pi;
 
 local function pos_in_dir(obj, dir) -- position after we move in specified direction
-	local yaw = obj:getyaw();
+	local yaw = obj:get_yaw();
 	local pos = obj:get_pos();
 	
 	if dir == 1 then -- left 
@@ -105,9 +105,9 @@ basic_robot.commands.turn = function (name, angle)
 	local yaw;
 	-- more precise turns by 1 degree resolution
 	local mult = math.pi/180;
-	local yaw = obj:getyaw();
+	local yaw = obj:get_yaw();
 	yaw = math.floor((yaw+angle)/mult+0.5)*mult;
-	obj:setyaw(yaw);
+	obj:set_yaw(yaw);
 end
 
 
@@ -290,7 +290,7 @@ basic_robot.commands.pickup = function(r,name)
 				picklist[#picklist+1]=detected_obj;
 				if inv:room_for_item("main", stack) then
 					inv:add_item("main", stack);
-					obj:setpos({x=0,y=0,z=0}) -- no dupe
+					obj:set_pos({x=0,y=0,z=0}) -- no dupe
 				end
 			obj:remove();
 			end
@@ -941,7 +941,7 @@ basic_robot.commands.walk_path = function(name)
 		end
 	end
 	yaw = yaw - math.pi/2
-	obj:setyaw(yaw);
+	obj:set_yaw(yaw);
 	
 	pathdata[1] = idx + 1 -- target next node
 	obj:moveto(pos2, true)
@@ -1206,6 +1206,52 @@ basic_robot.commands.machine = {
 		return true
 		
 	end,
+	
+	place_seed = function(name,dir,seedbookname) -- use basic_farming seedbook to place seed
+		if not basic_farming then return end
+		local obj = basic_robot.data[name].obj;
+		local pos = pos_in_dir(obj, dir)
+	
+		local spos = obj:get_luaentity().spawnpos; 
+		local inv = minetest.get_meta(spos):get_inventory();
+		local idx = 0; -- where is seedbook?
+		
+		for i = 1,inv:get_size("main") do -- where in inventory is seedbook?
+			if inv:get_stack("main", i):get_name() == seedbookname then idx = i; break end
+		end
+		if idx == 0 then return end -- no book in inventory!
+		
+		local itemstack = basic_farming.seed_on_place(inv:get_stack("main", idx), nil, {type = "node",above = pos})
+		inv:set_stack("main", idx, itemstack) -- refresh stack in inventory
+	end,
+	
+	dig_seed = function(name, dir)
+		if not basic_farming then return end
+		local obj = basic_robot.data[name].obj;
+		local pos = pos_in_dir(obj, dir)
+		
+		local nodename = minetest.get_node(pos).name;
+		local basename,stage
+		basename,stage=string.match(nodename,"%w+:(%w+)_(%d+)") -- modname:basename_stage
+		if not basename then return end
+		
+		local spos = basic_robot.data[name].spawnpos; -- position of spawner block
+		local inv = minetest.get_meta(spos):get_inventory();
+		
+		local itemstack = ItemStack("basic_farming:seedbook_" .. basename)
+
+		local seeds = tostring(minetest.get_meta(pos):get_int("gene"));
+		-- possibly several seeds?
+		local count = minetest.get_meta(pos):get_int("count"); if count == 0 then count = 1 end
+		
+		local data = {name = basename, items = string.rep(seeds.. " ",count-1) .. seeds }
+		minetest.set_node(pos,{name = "air"})
+		local meta = itemstack:get_meta()
+		meta:from_table({fields = data})
+		
+		inv:add_item("main",itemstack);
+	end,
+	
 }
 
 -- CRPYTOGRAPHY

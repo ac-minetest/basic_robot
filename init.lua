@@ -26,7 +26,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2020/11/27a";
+basic_robot.version = "2021/03/02a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -280,6 +280,11 @@ function getSandboxEnv (name)
 				if player then return player:get_pos() else return nil end 
 			end,
 			
+			getview = function(name) 
+				local player = minetest.get_player_by_name(name); 
+				if player then return player:get_look_dir() else return nil end 
+			end,
+			
 			connected = function()
 				local players =  minetest.get_connected_players();
 				local plist = {}
@@ -460,6 +465,14 @@ function getSandboxEnv (name)
 	for dir, dir_id in pairs(directions) do
 		env.write_text[dir] = function(text) return commands.write_text(name, dir_id,text) end
 	end
+	
+	--farming specials
+	env.machine.place_seed = {}; local env_machine_place_seed = env.machine.place_seed
+	env.machine.dig_seed = {}; local env_machine_dig_seed = env.machine.dig_seed;
+	for dir, dir_id in pairs(directions) do
+		env_machine_place_seed[dir] = function(seedbookname) return commands.machine.place_seed(name,dir_id,seedbookname) end
+		env_machine_dig_seed[dir] = function(dir) return commands.machine.dig_seed(name,dir_id) end
+	end	
 			
 	if authlevel>=1 then -- robot privs
 	
@@ -830,25 +843,25 @@ local robot_spawner_update_form = function (pos, mode)
 		
 		form  = 
 		"size[9.5,8]" ..  -- width, height
-		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
-		"button[-0.25,7.5;1.25,1;EDIT;EDIT]".. 
-		"button[-0.25,-0.25;1.25,1;OK;SAVE]".. 
-		"button_exit[-0.25, 0.75;1.25,1;spawn;START]"..
-		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
-			 "field[0.25,3.;1.,1;id;id;"..id.."]"..
-			 "button[-0.25, 3.6;1.25,1;inventory;storage]"..
-		     "button[-0.25, 4.6;1.25,1;library;library]"..
-		     "button[-0.25, 5.6;1.25,1;help;help]";
+		"textarea[1.25,-0.25;8.75,10.25;code;;".. code.."]"..
+		"button[-0.15,7.5;1.25,1;EDIT;EDIT]".. 
+		"button[-0.15,-0.25;1.25,1;OK;"..minetest.colorize("yellow","SAVE").."]".. 
+		"button_exit[-0.15, 0.75;1.25,1;spawn;"..minetest.colorize("green","START").."]"..
+		     "button[-0.15, 1.75;1.25,1;despawn;"..minetest.colorize("red","STOP").."]"..
+			 "field[0.15,3.;1.2,1;id;id;"..id.."]"..
+			 "button[-0.15, 3.6;1.25,1;inventory;storage]"..
+		     "button[-0.15, 4.6;1.25,1;library;library]"..
+		     "button[-0.15, 5.6;1.25,1;help;help]";
 			 
 	else -- when robot clicked
 		form  = 
 		"size[9.5,8]" ..  -- width, height
-		"textarea[1.25,-0.25;8.75,9.8;code;;".. code.."]"..
-		"button_exit[-0.25,-0.25;1.25,1;OK;SAVE]"..
-		     "button[-0.25, 1.75;1.25,1;despawn;STOP]"..
-			 "button[-0.25, 3.6;1.25,1;inventory;storage]"..
-		     "button[-0.25, 4.6;1.25,1;library;library]"..
-		     "button[-0.25, 5.6;1.25,1;help;help]";
+		"textarea[1.25,-0.25;8.75,10.25;code;;".. code.."]"..
+		"button_exit[-0.15,-0.25;1.25,1;OK;SAVE]"..
+		     "button[-0.15, 1.75;1.25,1;despawn;STOP]"..
+			 "button[-0.15, 3.6;1.25,1;inventory;storage]"..
+		     "button[-0.15, 4.6;1.25,1;library;library]"..
+		     "button[-0.15, 5.6;1.25,1;help;help]";
 			 
 	end
 		
@@ -1043,8 +1056,6 @@ minetest.register_entity("basic_robot:robot",{
 	 end,
 })
 
-
-
 local spawn_robot = function(pos,node,ttl)
 	if type(ttl) ~= "number" then ttl = 0 end
 	if ttl<0 then return end
@@ -1081,7 +1092,9 @@ local spawn_robot = function(pos,node,ttl)
 	
 
 	if id <= 0 then -- just compile code and run it, no robot entity spawn
-		local codechange = false;
+		local codechange = false; -- was code changed by editing?
+		local poschange = false; -- are we running from different spawner?
+		
 		if meta:get_int("codechange") == 1 then
 			meta:set_int("codechange",0);
 			codechange = true;
@@ -1118,8 +1131,10 @@ local spawn_robot = function(pos,node,ttl)
 			end
 		end
 		
+		local hashpos = minetest.hash_node_position(pos)
+		if data.lastpos~= hashpos then data.lastpos = hashpos; poschange = true end
 		
-		if not data.bytecode then
+		if not data.bytecode or poschange then -- compile again
 			local script = meta:get_string("code");
 		
 			if data.authlevel<3 then -- not admin

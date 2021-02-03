@@ -272,6 +272,9 @@ local help_pages = {
 		"    materials",
 		"  compress(input) - requires upgrades - energy intensive process",
 		"  transfer_power(amount,target_robot_name)",
+		"  dig_seed.direction digs seed node and transforms it to seed book",
+		"  place_seed.direction(seedbookname) takes oldest seed from seed book",
+		"    and plants it",
 	},
 	
 	["CRYPTOGRAPHY"] = {
