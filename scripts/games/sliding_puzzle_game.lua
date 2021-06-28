@@ -71,7 +71,8 @@ if not init then
 	
 	create_board(size)
 	render_board()
-	
+	self.listen_punch(self.pos()) -- attach punch listener
+
 end
 
 event = keyboard.get();

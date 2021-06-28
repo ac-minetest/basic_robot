@@ -595,6 +595,19 @@ local write_keyevent = function(data,pos, puncher,type)
 	
 end
 
+local button_punched = function(pos, node, player,type)
+	local name = player:get_player_name(); if name==nil then return end
+	local round = math.floor;
+	local r = basic_robot.radius; local ry = 2*r; 
+	local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
+	
+	local hppos = minetest.hash_node_position(ppos)
+	local rname = basic_robot.data.punchareas[hppos];
+	local data = basic_robot.data[rname];
+	if data then 
+		write_keyevent(data,pos, player:get_player_name(),type)
+	end
+end
 
 local register_robot_button = function(R,G,B,type)
 	minetest.register_node("basic_robot:button"..R..G..B, 
@@ -605,20 +618,8 @@ local register_robot_button = function(R,G,B,type)
 		wield_image = "robot_button.png^[colorize:#"..R..G..B..":180",
 		
 		is_ground_content = false,
-		groups = {cracky=3},
-		on_punch = function(pos, node, player)
-			local name = player:get_player_name(); if name==nil then return end
-			local round = math.floor;
-			local r = basic_robot.radius; local ry = 2*r; -- note: this is skyblock adjusted
-			local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
-			local meta = minetest.get_meta(ppos);
-			local name = meta:get_string("name");
-			local data = basic_robot.data[name];
-			if data then 
-				write_keyevent(data,pos, player:get_player_name(),type)
-			end
-		end
-		
+		groups = {cracky=3,not_in_craft_guide = 1},
+		on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
 	})
 end
 
@@ -632,19 +633,8 @@ minetest.register_node("basic_robot:button"..number,
 	paramtype2 = "facedir",
 
 	is_ground_content = false,
-	groups = {cracky=3},
-	on_punch = function(pos, node, player)
-		local name = player:get_player_name(); if name==nil then return end
-		local round = math.floor;
-		local r = basic_robot.radius; local ry = 2*r;
-		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
-		local meta = minetest.get_meta(ppos);
-		local name = meta:get_string("name");
-		local data = basic_robot.data[name];
-		if data then 
-			write_keyevent(data,pos, player:get_player_name(),type)
-		end
-	end		
+	groups = {cracky=3,not_in_craft_guide = 1},
+	on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
 	})
 end
 
@@ -657,21 +647,9 @@ minetest.register_node("basic_robot:button_"..number,
 	inventory_image = string.format("%03d",number).. ".png",
 	wield_image = string.format("%03d",number).. ".png",
 	is_ground_content = false,
-	groups = {cracky=3},
+	groups = {cracky=3,not_in_craft_guide = 1},
 	paramtype2 = "facedir",
-	on_punch = function(pos, node, player)
-		local name = player:get_player_name(); if name==nil then return end
-		local round = math.floor;
-		local r = basic_robot.radius; local ry = 2*r;
-		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
-		local meta = minetest.get_meta(ppos);
-		local name = meta:get_string("name");
-		local data = basic_robot.data[name];
-		if data then 
-			write_keyevent(data,pos, player:get_player_name(),type)
-			--data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = type} 
-		end
-	end		
+	on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
 	})
 end
 
@@ -683,20 +661,8 @@ minetest.register_node("basic_robot:button_"..number,
 	inventory_image = texture .. ".png",
 	wield_image = texture .. ".png",
 	is_ground_content = false,
-	groups = {cracky=3},
-	on_punch = function(pos, node, player)
-		local name = player:get_player_name(); if name==nil then return end
-		local round = math.floor;
-		local r = basic_robot.radius; local ry = 2*r;
-		local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r};
-		local meta = minetest.get_meta(ppos);
-		local name = meta:get_string("name");
-		local data = basic_robot.data[name];
-		if data then 
-			write_keyevent(data,pos, player:get_player_name(),type)
-			--data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = player:get_player_name(), type = number} 
-		end
-	end		
+	groups = {cracky=3,not_in_craft_guide = 1},
+	on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
 	})
 end
 

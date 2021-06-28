@@ -8,6 +8,8 @@ if not data then
 	self.spam(1)	
 	t0 = _G.minetest.get_gametime();
 	data = {}; spawnpos = self.spawnpos() -- place mines
+	self.listen_punch(self.pos()); -- attach punch listener
+	
 	for i = 1, minescount do local i = math.random(m); local j = math.random(n); if not data[i] then data[i] = {} end; data[i][j] = 1; end
 	if not data[1] then data[1] = {} end if not data[2] then data[2] = {} end -- create 2x2 safe area
 	data[1][1] = 0;data[1][2] = 0;data[2][1] = 0;data[2][2] = 0;

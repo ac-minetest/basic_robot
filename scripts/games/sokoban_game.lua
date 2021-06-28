@@ -34,6 +34,7 @@
 		
 		
 		self.spam(1)
+		self.listen_punch(self.pos()); -- attach punch listener
 		sokoban.push_time = 0
 		sokoban.blocks = 0;sokoban.level = 0; sokoban.moves=0;
 		imax = 0; jmax = 0

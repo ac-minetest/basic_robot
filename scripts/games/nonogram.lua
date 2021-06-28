@@ -2,9 +2,10 @@
 
 -- INIT
 if not grid then 
-	n=6 -- size
+	n=6
 	solved = false -- do we render solution or blank?
 --	_G.math.randomseed(3)
+	
 	self.spam(1)
 
 
@@ -20,7 +21,7 @@ if not grid then
 	end
 
 	_,scores_string = book.read(1); scores = minetest.deserialize(scores_string)
-	if not scores then scores = init_score(5,5,-999) end -- 5 levels, 5 top records, smaller time is better (thats why - in top 5, there largest value counts)
+	if not scores then scores = init_score(5,5,-999) end -- 5 levels, 5 top records
 
 	t0 = _G.minetest.get_gametime()
 	local intro ="numbers at beginning of each row (coloumn) tell how many\nred blocks are together in each row ( coloumn )." ..
@@ -168,6 +169,11 @@ if not grid then
 	if not players then error("nonogram: no players near") end
 	local pname = players[1];
 	
+	self.listen_punch(self.pos()) -- attach punch listener
+	
+	--self.label()
+	
+	--self.label(string.gsub(_G.dump(read_field()),"\n","") )
 	difficulty = get_difficulty()
 	 reward = 0; limit = 0;
 

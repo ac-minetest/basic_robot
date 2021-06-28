@@ -1,6 +1,7 @@
 --go by rnd
 if not init then init=true
 	spos = self.spawnpos()
+	self.listen_punch(self.pos()) -- attach punch listener
 	sizex = 9; sizez = 9
 	
 	gamepieces = {

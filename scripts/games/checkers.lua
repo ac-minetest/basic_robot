@@ -1,6 +1,7 @@
 --checkers by rnd, 1.5 hr
 if not init then init=true
 	spos = self.spawnpos()
+	self.listen_punch(self.pos()) -- attach punch listener
 	sizex = 8; sizez= 8
 	
 	gamepieces = {
@@ -81,7 +82,10 @@ if not init then init=true
 	build_game()
 	punchpos = nil; -- pos of last punched piece
 	step = 0;
-	self.label("checkers\npunch piece then punch board to move")
+	self.label("checkers\npunch piece then punch board to move\n"..
+	"RULES\n\n1. move only diagonal and forward. capture pieces by jumping over them.\nif you can capture you must\n"..
+	"2. once you reach end of board you get king. it can move backward too"	
+	)
 end
 
 event = keyboard.get()

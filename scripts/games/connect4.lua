@@ -4,6 +4,7 @@ if not data then
 --	m=3;n=3;turn = 0; num = 3;
 	self.spam(1);t0 = _G.minetest.get_gametime();
 	spawnpos = self.spawnpos() -- place mines
+	self.listen_punch(self.pos()) -- attach punch listener
 	state = 0; -- 0 signup 1 game
 	players = {};
 	data = {};

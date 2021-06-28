@@ -79,6 +79,7 @@ render_lights(); render_switches(true)
 
 
 self.label("GOAL OF GAME: punch buttons with numbers in correct order to turn all blocks to 0")
+self.listen_punch(self.pos()) -- attach punch listener
 
 --self.label(serialize(switches))
 end

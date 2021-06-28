@@ -1,4 +1,4 @@
--- basic_robot by rnd, 2016
+-- basic_robot by rnd, 2016-2021
 
 
 basic_robot = {};
@@ -26,7 +26,7 @@ basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes invento
 
 basic_robot.http_api = minetest.request_http_api(); 
 
-basic_robot.version = "2021/03/02a";
+basic_robot.version = "2021/06/28a";
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -40,6 +40,7 @@ basic_robot.ids = {}; -- stores maxid for each player
 basic_robot.virtual_players = {}; -- this way robot can interact with the world as "player" TODO
 
 basic_robot.data.listening = {}; -- which robots listen to chat
+basic_robot.data.punchareas = {}; -- where robots listen punch events, [hashes of 32 sized chunk] = robot name
 
 dofile(minetest.get_modpath("basic_robot").."/robogui.lua") -- gui stuff
 dofile(minetest.get_modpath("basic_robot").."/commands.lua")
@@ -63,6 +64,7 @@ function getSandboxEnv (name)
 	if not basic_robot.data[name].rom then basic_robot.data[name].rom = {} end -- create rom if not yet existing
 	local env = 
 	{
+		_Gerror = error,
 		pcall=pcall,
 		robot_version = function() return basic_robot.version end,
 		
@@ -113,12 +115,30 @@ function getSandboxEnv (name)
 				obj:set_animation({x=anim_start,y=anim_end}, anim_speed, anim_stand_start)
 			end,
 			
-			listen = function (mode)
+			listen = function (mode) -- will robot listen to chat?
 				if mode == 1 then 
 					basic_robot.data.listening[name] = true
 				else
 					basic_robot.data.listening[name] = nil
 				end
+			end,
+			
+			listen_punch = function(pos, is_remove) -- robot will listen to punch events in 32 sized chunk containing pos
+				local round = math.floor;
+				local r = basic_robot.radius; local ry = 2*r; -- note: this is skyblock adjusted
+				if not pos then return end
+				local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
+				local hppos = minetest.hash_node_position(ppos)
+				local rname = basic_robot.data.punchareas[hppos];
+				if is_remove then -- remove listener
+					basic_robot.data.punchareas[hppos] = nil
+					return
+				end
+				
+				if rname then -- area already registered for listening
+					return rname
+				end
+				basic_robot.data.punchareas[hppos] = name; -- register robot name
 			end,
 			
 			listen_msg = function() 
@@ -153,7 +173,7 @@ function getSandboxEnv (name)
 			reset = function()
 				local pos = basic_robot.data[name].spawnpos; 
 				local obj = basic_robot.data[name].obj;
-				obj:setpos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
+				obj:set_pos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
 			end,
 			
 			set_libpos = function(pos)
@@ -575,7 +595,7 @@ end
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_c_", "_G", "while%(", "while{", "pcall","%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_G", "while%(", "while{", "pcall","%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -666,8 +686,8 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
 
 	-- process script to insert call counter in every function
-	local _increase_ccounter = " _c_ = _c_ + 1; if _c_ > " .. call_limit .. 
-	" then _G.error(\"Execution count \".. _c_ .. \" exceeded ".. call_limit .. "\") end; "
+	local _increase_ccounter = " _Gc = _Gc + 1; if _Gc > " .. call_limit .. 
+	" then _Gerror(\"Execution count \".. _Gc .. \" exceeded ".. call_limit .. "\") end; "
 	
 	local i1=0; local i2 = 0;
 	local found = true;
@@ -726,7 +746,7 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	-- must reset ccounter when paused, but user should not be able to force reset by modifying pause!
 	-- (suggestion about 'pause' by Kimapr, 09/26/2019)
 	
-	return "_c_ = 0 local _pause_ = pause pause = function() _c_ = 0; _pause_() end " .. script;
+	return "_Gc = 0 local _Gpause = pause pause = function() _Gc = 0; _Gpause() end " .. script;
 	
 	--return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
@@ -843,15 +863,18 @@ local robot_spawner_update_form = function (pos, mode)
 		
 		form  = 
 		"size[9.5,8]" ..  -- width, height
-		"textarea[1.25,-0.25;8.75,10.25;code;;".. code.."]"..
+		"style_type[textarea;font_size=12;font=mono;bgcolor=#000000;textcolor=#00FF00;border=false]"..
+		"style_type[button;font_size=14;font=mono;bgcolor=#000000;border=false]"..
+		"style_type[button_exit;font_size=14;font=mono;bgcolor=#000000;border=false]"..
+		"textarea[1.25,-0.25;8.8,10.25;code;;".. code.."]"..
 		"button[-0.15,7.5;1.25,1;EDIT;EDIT]".. 
 		"button[-0.15,-0.25;1.25,1;OK;"..minetest.colorize("yellow","SAVE").."]".. 
 		"button_exit[-0.15, 0.75;1.25,1;spawn;"..minetest.colorize("green","START").."]"..
 		     "button[-0.15, 1.75;1.25,1;despawn;"..minetest.colorize("red","STOP").."]"..
 			 "field[0.15,3.;1.2,1;id;id;"..id.."]"..
-			 "button[-0.15, 3.6;1.25,1;inventory;storage]"..
-		     "button[-0.15, 4.6;1.25,1;library;library]"..
-		     "button[-0.15, 5.6;1.25,1;help;help]";
+			 "button[-0.15, 3.6;1.25,1;inventory;STORAGE]"..
+		     "button[-0.15, 4.6;1.25,1;library;LIBRARY]"..
+		     "button[-0.15, 5.6;1.25,1;help;HELP]";
 			 
 	else -- when robot clicked
 		form  = 
@@ -1531,9 +1554,9 @@ minetest.register_on_player_receive_fields(
 							local title,text = basic_robot.commands.read_book(itemstack);
 							title = title or ""; text = text or "";
 							local dtitle = minetest.formspec_escape(title);
-							local form = "size [8,8] textarea[0.,0.;8.75,8.5;book; TITLE : " .. minetest.formspec_escape(title) .. ";" ..
+							local form = "size [8,8] textarea[0.,0.15;8.75,8.35;book; TITLE : " .. minetest.formspec_escape(title) .. ";" ..
 							minetest.formspec_escape(text) .. "] button_exit[-0.25,7.5;1.25,1;OK;SAVE] "..
-							"button_exit[1.,7.5;2.75,1;LOAD;USE AS PROGRAM] field[4,8;4.5,0.5;title;title;"..dtitle.."]";
+							"button_exit[0.9,7.5;3,1;LOAD;USE AS PROGRAM] field[4,8;4.5,0.5;title;title;"..dtitle.."]";
 							minetest.show_formspec(player:get_player_name(), "robot_book_".. sel.. ":".. minetest.pos_to_string(libpos), form);
 							
 						end
@@ -1746,6 +1769,11 @@ minetest.register_node("basic_robot:spawner", {
 		}
 	},
 	
+	effector = {
+		action_on = spawn_robot, 
+		action_off = despawn_robot
+	},
+	
 	on_receive_fields = on_receive_robot_form,
 	
 	allow_metadata_inventory_put = function(pos, listname, index, stack, player)
@@ -1836,9 +1864,10 @@ minetest.register_craftitem("basic_robot:control", {
 			local pos  = pointed_thing.under
 			if not pos then return end
 			local ppos = {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry+1,z=round(pos.z/r+0.5)*r}; -- just on top of basic_protect:protector!
-			local meta = minetest.get_meta(ppos);
-			local name = meta:get_string("name");
-			local data = basic_robot.data[name];
+			
+			local hppos = minetest.hash_node_position(ppos)
+			local rname = basic_robot.data.punchareas[hppos];
+			local data = basic_robot.data[rname];
 			if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = owner, type = 0} end
 			return
 		end

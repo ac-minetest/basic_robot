@@ -15,6 +15,7 @@ if not data then
 	state = SIGNUP
 	
 	t0 = _G.minetest.get_gametime();spawnpos = self.spawnpos() -- place mines
+	self.listen_punch(self.pos()); -- attach punch listener
 	data = {}; 
 	
 	init_game = function()

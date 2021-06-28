@@ -19,6 +19,7 @@ if not init then
 	punchstate = 1; -- first punch
 	punchpos = {} 
 	pos = self.spawnpos()
+	self.listen_punch(self.pos()) -- attach punch listener
 	dice =  0
 	spawns  = {
 		{2,2,1,2,2,"basic_robot:buttonFF8080"}, -- xstart,zstart,ystart, dimx, dimz, nodename
@@ -61,11 +62,12 @@ if not init then
 		local idx = msgs[1] or 1; 
 		msgs[idx+1] = text;idx = idx+1; if idx>5 then idx = 1 end msgs[1] = idx
 	end
-	show_msgs =  function() -- last message on top
-		local out = {}; local idx = msgs[1] or 1;
-		for i = idx,2,-1 do out[#out+1] = msgs[i] or "" end 
-		for i = 6, idx+1,-1 do out[#out+1] = msgs[i] or "" end 
-		self.label(table.concat(out,"\n")) 
+	show_msgs =  function() 
+	local out = {}; 
+	local idx = msgs[1] or 1;
+	for i = idx,2,-1 do out[#out+1] = msgs[i] or "" end 
+	for i = 6, idx+1,-1 do out[#out+1] = msgs[i] or "" end 
+	self.label(table.concat(out,"\n")) 
 	end
 	
 end
