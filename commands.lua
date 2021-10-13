@@ -1009,24 +1009,47 @@ basic_robot.commands.machine = {
 		local stack = ItemStack(input);
 		if not inv:contains_item("main",stack) then return nil,"2: no input material" end
 		
-		-- read energy value of input ( coal lump = 1)
-		local add_energy = basic_robot.technic.fuels[input];
-		if not add_energy then -- lookup fuel value
+		-- read energy value of input ( coal lump = 1 energy = 40 fuel time)
+		local fuel_outputs = basic_robot.technic.fuels[input];
+		local add_energy = 0
+		local replacement = nil
+		if fuel_outputs ~= nil then -- used cached result
+			add_energy = fuel_outputs.energy
+			replacement = fuel_outputs.replacement
+		else -- lookup fuel value
 			local fueladd, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = {stack}}) 
 			if fueladd.time > 0 then 
+				-- 1 energy = 1 coal lump = 40 fuel time
 				add_energy = fueladd.time/40; -- fix by kurik
 			else
 				return nil, "3: material can not be used as a fuel"
 			end
-			if add_energy>0 then basic_robot.technic.fuels[input] = add_energy end
+			replacement = afterfuel.items[1]
+			-- Cache the result for next time
+			if add_energy>0 then
+				basic_robot.technic.fuels[input] = {energy=add_energy, replacement=replacement}
+			end
 		end
 		
 		inv:remove_item("main", stack);
 		
 		--add energy
-		local data = basic_robot.data[name]; energy = data.menergy or 0;
-		energy = energy+ add_energy;data.menergy = energy
-		return energy;
+		local data = basic_robot.data[name]
+		energy = data.menergy or 0
+		energy = energy + add_energy
+		data.menergy = energy
+		-- Put replacements, if any, in inventory or drop them on the spawner
+		-- (For example, consuming a lava bucket yields power _and_ an empty bucket.)
+		if replacement ~= nil then
+			local replacement_stack = ItemStack(replacement)
+			local leftover = inv:add_item("main", replacement_stack)
+			if not leftover:is_empty() then -- no room to add it
+				local above = vector.new(pos.x, pos.y + 1, pos.z)
+				local drop_pos = minetest.find_node_near(above, 1, {"air"}) or above
+				minetest.item_drop(replacement_stack, nil, drop_pos)
+			end
+		end
+		return energy
 	end,
 	
 	-- smelting
