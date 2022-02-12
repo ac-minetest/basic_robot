@@ -1,0 +1,23 @@
+-- high scores for multiple levels of game
+if not init then init = true
+	init_score = function(levels, tops, default_value) -- [level] = {{name,score}, ...}
+		local data = {}	for i = 1, levels do data[i] = {} for j = 1,tops do data[i][j] = {"-",default_value} end end return data
+	end
+
+	add_score = function(data,name,score,level)
+		local datal = data[level]; local tops = #datal;
+		local j;for i = 1,tops do if score>datal[i][2] then j = i break end end
+		if not j then return end; for i=tops,j+1,-1 do datal[i][1] = datal[i-1][1];datal[i][2] = datal[i-1][2] end
+		datal[j] = {name,score}	
+	end
+
+	_,text = book.read(1); data = minetest.deserialize(text)
+	if not data then data = init_score(1,5,-999) end
+	
+	add_score(data,"pl1",-50,1)
+	add_score(data,"pl2",-40,1)
+	
+	book.write(1,"score", minetest.serialize(data))
+	
+	self.label(serialize(data))
+end

@@ -105,7 +105,7 @@ minetest.register_on_player_receive_fields(
 -- })
 -- end
 
-local help_address = {}; -- array containing current page name for player
+local help_address = {}; -- table containing current page name for player [name] = {address = ..., sel = ..}
 local help_pages = {
 	["main"] = { 
 		"     === ROBOT HELP - MAIN SCREEN === ","",
@@ -201,7 +201,7 @@ local help_pages = {
 		"  attack(target) attempts to attack target player if nearby",
 		"  grab(target) attempt to grab target player if nearby and returns",
 		"    true if succesful",
-		"  player.getpos(name) return position of player, player.connected()",
+		"  player.get_pos(name) return position of player, player.connected()",
 		" returns list of connected players names",
 	},
 	
@@ -244,12 +244,14 @@ local help_pages = {
 	["KEYBOARD AND USER INTERACTIONS"] = {
 		"back to [Commands reference]",
 		"KEYBOARD","",
-		"  EVENTS : place spawner at coordinates (r*i,2*r*j+1,r*k) to monitor",
-		"    events. value of r is ".. basic_robot.radius,
+		"  EVENTS : first attach listener to robot with self.listen_punch",
+		"  self.listen_punch(pos,is_remove) robot will listen to punch events in ",
+		"    ".. basic_robot.radius .. " sized chunk containing position",
+		"    pos = {x=.., y=.., z=..}. if is_remove==true then remove listener",
 		"  keyboard.get() returns table {x=..,y=..,z=..,puncher = .. , type = .. }",
-		"    for keyboard event",
-		"  keyboard.set(pos,type) set key at pos of type 0=air,1-6,7-15,16-271,",
-		"    limited to range 10 around spawner",
+		"    if there was keyboard event, nil if there was none",
+		"  keyboard.set(pos,type) set key as a node in world at pos of type",
+		"    0=air,1-6,7-15,16-271, limited to range 10 around spawner",
 		"  keyboard.read(pos) return node name at pos",
 	},
 	
@@ -272,6 +274,9 @@ local help_pages = {
 		"    materials",
 		"  compress(input) - requires upgrades - energy intensive process",
 		"  transfer_power(amount,target_robot_name)",
+		"  dig_seed.direction digs seed node and transforms it to seed book",
+		"  place_seed.direction(seedbookname) takes oldest seed from seed book",
+		"    and plants it",
 	},
 	
 	["CRYPTOGRAPHY"] = {
@@ -317,6 +322,8 @@ local help_pages = {
 		"       say(i); dig.forward(); move.forward()",
 		"       pause()",
 		"   end",
+		"pause(amount) temporarily stops if available operations are less than",
+		"	amount"
 	},
 
 	
@@ -328,15 +335,18 @@ end
 
 
 local robot_show_help = function(pname) --formname: robot_help
-	local address = help_address[pname] or "main";	
+	local data = help_address[pname];
+	if not data then help_address[pname] = {address = "main", sel = 1} data = help_address[pname] end
+	local address = data.address;
 	
 	--minetest.chat_send_all("D DISPLAY HELP for ".. address )
 	local pages = help_pages[address];
-
+	if not pages then return end
+	
 	local content = table.concat(pages,",")
-	local size = 9; local vsize = 8.75;
+	local size = 9.5; local vsize = 8.75;
 
-	local form = "size[" .. size .. "," .. size .. "] textlist[-0.25,-0.25;" .. (size+1) .. "," .. (vsize+1) .. ";wiki;".. content .. ";1]";
+	local form = "size[" .. size .. "," .. size .. "] button[-0.25,".. size-0.15 ..";1,0.5;go;go] textlist[-0.25,-0.25;" .. (size+1) .. "," .. (vsize+0.25) .. ";wiki;".. content .. ";1]";
 	--minetest.chat_send_all("D " .. form)
 	minetest.show_formspec(pname, "robot_help", form)
 	return
@@ -346,19 +356,31 @@ end
 robogui["robot_help"] = {
 	response = function(player,formname,fields)
 		local name = player:get_player_name()
-
 		local fsel = fields.wiki;
-		if fsel and string.sub(fsel,1,3) == "DCL" then
-			local sel = tonumber(string.sub(fsel,5)) or 1; -- selected line
-			local address = help_address[name] or "main";
-			local pages = help_pages[address];
-						
-			local link = string.match(pages[sel] or "", "\\%[([%w%s]+)\\%]")
-			if help_pages[link] then 
-				help_address[name] = link;
-				robot_show_help(name)
-			end
+		--minetest.chat_send_all("D " .. minetest.serialize(fields))
+		
+		
+		local go = false;
+		if fsel then
+			help_address[name].sel = tonumber(string.sub(fsel or "",5)) or 1
+			if string.sub(fsel,1,3) == "CHG" then return end -- just select topic, dont go there
+			go = true -- we want to go to selected page
 		end
+		
+		if fields.go then go = true end
+		if not go then return end
+			
+		local sel = help_address[name].sel; -- selected line
+		local address = help_address[name].address;
+		local pages = help_pages[address];
+					
+		local link = string.match(pages[sel] or "", "\\%[([%w%s]+)\\%]")
+		if help_pages[link] then 
+			help_address[name].address = link
+			help_address[name].sel = 1
+			robot_show_help(name)
+		end
+		
 	end,
 	
 	getForm = function(player_name)

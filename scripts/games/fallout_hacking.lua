@@ -1,5 +1,13 @@
+-- 'hacking' game from Fallout, by rnd
 if not init then
 	init = true
+	
+	max_guesses = 4 -- how many guesses player gets
+	n = 40; -- how many options
+	pass_length=5
+	charset_size=10 -- a,b,c,d,e,...?
+	cols = 4;
+	rows = math.ceil(n/cols);
 
 	generate_random_string = function(n,m)
 		local ret = {};
@@ -18,21 +26,18 @@ if not init then
 	end
 	
 	get_form = function()
-	
 		local n = #passlist;
 		
 		local frm = "label[0,0;" .. intro_msg .. "] " .. "label[0,8.5;" .. msg .. "] "
-		
-		  for i = 1,10 do
-			 frm = frm .. "button[0,".. (i)*0.75 ..";2,1;" .. i .. ";".. passlist[i] .. "] "
-		  end
-		  
-		  for i = 11,n do
-			 frm = frm .. "button[2,".. (i-11+1)*0.75 ..";2,1;" .. i .. ";".. passlist[i] .. "] "
-		  end
-	   
-		  local form = "size[6," .. 9 .. "]" .. frm;
-		  return form
+		local k = 0
+		for i=0,cols-1 do
+			for j = 1,rows do
+				k=k+1; if k>n then break end
+				frm = frm .. "button[" .. 2*i.. ",".. j*0.75 ..";2,1;" .. k .. ";".. passlist[k] .. "] "
+			end
+		end
+		local form = "size[" .. 2*cols .. "," .. 9 .. "]" .. frm;
+		return form
 	end
 
 	_G.math.randomseed(os.time())
@@ -40,15 +45,17 @@ if not init then
 	msg = "" --TEST\nTEST\nTEST";
 	passlist = {}; passdict = {}
 	
-	n = 20; -- how many options
+	
+	
 	count = 0;
 	while count< n do
-		local pass = generate_random_string(5,5); -- password length, charset size
+		local pass = generate_random_string(pass_length,charset_size); -- password length, charset size
 		if not passdict[pass] then passlist[#passlist+1] =  pass; passdict[pass] = true; count = count + 1 end
 	end
 	correct = math.random(n)
+--	say(passlist[correct])
 	guesses = 0
-	max_guesses = 4
+	
 
 	rom.data = {};
 	if not rom.data then rom.data = {} end	
@@ -57,7 +64,7 @@ if not init then
 	local players = find_player(4);
 	if not players then say("#fallout hacking game: no players") self.remove() end
 	pname = players[1];
-	say("#fallout hacking game, player " .. pname)
+	minetest.chat_send_player(pname,"#fallout hacking game, player " .. pname)
 
 	--if rom.data[pname] then say("password is locked out!") self.remove() end
 	
@@ -76,18 +83,19 @@ sender,fields = self.read_form()
 				if selected>0 then
 					guesses = guesses + 1
 					if selected == correct then 
-						say("password " .. passlist[correct]  .. " is correct! " .. guesses .. " guesses.")
-						self.show_form(pname, "size[1,1] label[0,0.5;" .. minetest.colorize("lawngreen", "ACCESS GRANTED") .. "]")
+						minetest.chat_send_all("#FALLOUT HACKING: " .. pname .. " guessed the password " .. passlist[correct]  .. " after " .. guesses .. " guesses.")
+						self.show_form(pname, "size[3,1] label[0,0.5;" .. minetest.colorize("lawngreen", "ACCESS GRANTED") .. "]")
 						self.remove()
 						--correct: do something with player
 					else
+						if guesses == 3 then msg = msg .. "\n" end
 						msg = msg .. " " .. minetest.colorize("yellow",guesses .. ". " .. passlist[selected]) .. " (" .. get_similiarity(passlist[correct], passlist[selected]) .. " match)"
 						self.show_form(pname, get_form())
 					end
 					if guesses>=max_guesses then 
 						msg = minetest.colorize("red","A C C E S S  D E N I E D!")
 						self.show_form(pname, get_form())
-						say("too many false guesses. password locked out!") rom.data[pname] = 1; self.remove()
+						minetest.chat_send_player(pname,"too many false guesses. password locked out!") rom.data[pname] = 1; self.remove()
 					end					
 				end
 		if fields.quit then self.remove() end

@@ -1,18 +1,31 @@
 	-- SOKOBAN GAME, by rnd, robots port
-	
 
 	if not sokoban then
+		load_player_progress = true -- true will disable level loading and load saved player progress
 		sokoban = {};
 		local players = find_player(8);
 		if not players then error("sokoban: no player near") end
 		name = players[1];
+		
+		_, text = book.read(1)
+		gamedata = minetest.deserialize(text);
 
-		-- self.show_form(name,
-		-- "size[2,1.25]"..
-		-- "label[0,0;SELECT LEVEL 1-90]"..
-		-- "field[0.25,1;1,1;LVL;LEVEL;1]"..
-		-- "button_exit[1.25,0.75;1,1;OK;OK]"
-		-- )
+		if gamedata and gamedata[name] then 
+			say("#sokoban: welcome back " .. name .. ", loading level " .. gamedata[name].lvl+1)
+		else
+			say("sokoban: welcome new player " .. name)
+		end
+
+		if not load_player_progress then
+			self.show_form(name,
+			 "size[3,1.25]"..
+			 "label[0,0;SELECT LEVEL 1-90]"..
+			 "field[0.25,1;1.25,1;LVL;LEVEL;1]"..
+			 "button_exit[1.25,0.75;1,1;OK;OK]"
+			 )
+			self.read_form() -- clear inputs
+		end
+		 
 		state = 1 -- will wait for form receive otherwise game play
 		self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all white boxes pushed on aspen blocks")
 
@@ -21,6 +34,7 @@
 		
 		
 		self.spam(1)
+ self.listen_punch(self.pos()); -- attach punch listener
 		sokoban.push_time = 0
 		sokoban.blocks = 0;sokoban.level = 0; sokoban.moves=0;
 		imax = 0; jmax = 0
@@ -29,8 +43,9 @@
 		SOKOBAN_WALL = "moreblocks:cactus_brick"
 		SOKOBAN_FLOOR = "default:silver_sandstone"
 		SOKOBAN_GOAL = "default:aspen_tree"
-		SOKOBAN_BOX = "basic_robot:buttonFFFFFF"
+		SOKOBAN_BOX = "basic_robot:buttonwhite"
 		
+						
 		load_level = function(lvl)
 			
 			local pos = self.spawnpos(); pos.x=pos.x+1;pos.y=pos.y+1;
@@ -40,7 +55,7 @@
 			if lvl == nil then return end
 			if lvl <0 or lvl >89 then return end
 			
-			local file = _G.io.open(minetest.get_modpath("basic_robot").."\\scripts\\sokoban.txt","r")
+			local file = _G.io.open(minetest.get_modpath("basic_robot").."/scripts/games/sokoban.txt","r")
 			if not file then return end
 			local str = ""; local s; local p = {x=pos.x,y=pos.y,z=pos.z}; local i,j;i=0;
 			local lvl_found = false
@@ -75,7 +90,7 @@
 						if s=="." then p.y=p.y-1;puzzle.set_node(p,{name=SOKOBAN_GOAL}); p.y=p.y+1;puzzle.set_node(p,{name="air"}) end
 						--starting position
 						if s=="@" then 
-							player_:setpos({x=p.x,y=p.y-0.5,z=p.z}); -- move player to start position
+							player_:set_pos({x=p.x,y=p.y-0.5,z=p.z}); -- move player to start position
 							--p.y=p.y-1;puzzle.set_node(p,{name="default:glass"}); 
 							puzzle.set_node(p,{name="air"}) 
 							p.y=p.y+1;puzzle.set_node(p,{name="air"}) 
@@ -104,17 +119,41 @@
 			end
 		end
 		
+		force_load = function()
+			local lvl = 0 -- 1st level at idx 0 - sokoban level 1 
+			clear_game()
+			if gamedata and gamedata[name] then lvl = gamedata[name].lvl end -- load next level to play
+			load_level(lvl)
+			state = 0
+			self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand can't pull. goal is to get all white boxes pushed on aspen blocks")
+			
+		end
+		
+		if load_player_progress then
+			force_load() -- this prevents selecting custom level and loads players progress if any
+		end
+		
 	end
 
 	
-if state == 1 then
-	clear_game()
-	load_level(20)
-	state = 0
-	self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all white boxes pushed on aspen blocks")
-else
+if state == 1 then -- wait to load game
+	sender,fields = self.read_form()
+	if fields then
+		if fields.OK then
+			local lvl = tonumber(fields.LVL or 1)-1;
+			clear_game()
+			load_level(lvl)
+			state = 0
+			self.label("stand close to white box and punch it one time to push it. you can only push 1 box\nand cant pull. goal is to get all white boxes pushed on aspen blocks")
+		else
+			self.remove()
+		end
+	end
+
+
+else -- game 
 	
-	local ppos = player_:getpos()
+	local ppos = player_:get_pos()
 	if math.abs(ppos.y-sokoban.pos.y)~= 0.5 then minetest.chat_send_player(name,colorize("red", "SOKOBAN: " .. name ..  " QUITS ! ")); 
 	player_:set_eye_offset({x=0,y=0,z=0},{x=0,y=0,z=0});player_:set_physics_override({jump=1});	self.remove() end
 	
@@ -125,6 +164,7 @@ else
 			local pname = event.puncher
 			if pname ~= name then goto quit end
 			local pos = {x=event.x, y = event.y, z = event.z};
+			if minetest.get_node(pos).name == "air" then return end -- ignore move, block wasnt punched
 			local p=player.getpos(pname);local q={x=pos.x,y=pos.y,z=pos.z}
 			p.x=p.x-q.x;p.y=p.y-q.y;p.z=p.z-q.z
 			if math.abs(p.y+0.5)>0 then goto quit end
@@ -166,13 +206,18 @@ else
 				--say("move " .. sokoban.moves .. " : " ..sokoban.blocks .. " crates left ");
 				else 
 					say("games: ".. name .. " just solved sokoban level ".. sokoban.level .. " in " .. sokoban.moves .. " moves.");
+					
+					if not gamedata then gamedata = {} end
+					gamedata[name] = {lvl = sokoban.level}; -- increased level
+					book.write(1,"sokoban players", minetest.serialize(gamedata))
+					
 					player_:set_physics_override({jump=1})
 					player_:set_eye_offset({x=0,y=0,z=0},{x=0,y=0,z=0})
 					
 					local player = _G.minetest.get_player_by_name(event.puncher);
 					if player then
 						local inv =  player:get_inventory();
-						inv:add_item("main",_G.ItemStack("skyblock:sokoban 4 "))
+						inv:add_item("main",_G.ItemStack("default:gold_ingot " .. 2*sokoban.level))
 					end
 						
 					local i,j;

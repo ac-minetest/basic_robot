@@ -2,41 +2,27 @@
 
 -- INIT
 if not grid then 
-	n=6
+	n=9
 	solved = false -- do we render solution or blank?
 --	_G.math.randomseed(3)
 	
 	self.spam(1)
-	function get_score_from_string(score)
-		--say(score)
-		local scores = {};
-		local j=1;    --j k   l
-		for i=0,5 do -- 0 - 999 1 - 999 2 - 999 3 - 999 4 - 999 5 - 999
-			j = string.find(score," ", j+1);
-			local k = string.find(score," ", j+1);
-			local l = string.find(score," ", k+1);
-			if i==5 then l = string.len(score)+1 end
-			scores[i] = {string.sub(score,j+1,k-1),tonumber(string.sub(score,k+1,l-1))};
-			j=l
-		end
-		return scores
+
+
+	init_score = function(levels, tops, default_value) -- [level] = {{name,score}, ...}
+		local data = {}	for i = 1, levels do data[i] = {} for j = 1,tops do data[i][j] = {"-",default_value} end end return data
 	end
 	
-	if not rom.score then _,rom.score = book.read(1) end
-	if not rom.score then rom.score = "0 - 999 1 - 999 2 - 999 3 - 999 4 - 999 5 - 999" end
-	highscore = get_score_from_string(rom.score)
-	--self.label(string.gsub(_G.dump(highscore), "\n",""))
-	
-	function get_score_string(scores)
-		local out = ""
-		for i = 0,5 do
-			out = out .. i .. " " .. 
-			scores[i][1] .. " " .. 
-			scores[i][2] .. " "
-		end
-		return out
+	add_score = function(data,name,score,level)
+		local datal = data[level]; local tops = #datal;	local j;for i = 1,tops do 
+		if score>datal[i][2] then j = i break end end
+		if not j then return false end; for i=tops,j+1,-1 do datal[i][1] = datal[i-1][1];datal[i][2] = datal[i-1][2] end
+		datal[j] = {name,score} return true
 	end
-	
+
+	_,scores_string = book.read(1); scores = minetest.deserialize(scores_string)
+	if not scores then scores = init_score(n-1,n-1,-999) end -- 5 levels, 5 top records
+
 	t0 = _G.minetest.get_gametime()
 	local intro ="numbers at beginning of each row (coloumn) tell how many\nred blocks are together in each row ( coloumn )." ..
     "\npunch gray blocks to toggle them and reveal hidden red blocks.\npunch green to check solution. If you give up punch blue.";
@@ -99,7 +85,7 @@ if not grid then
 			grid[i]={};
 			for j = 1,n do
 				local typ = keyboard.read({x=spawnpos.x+j,y=spawnpos.y,z=spawnpos.z+i});
-				if typ == "basic_robot:button808080" then grid[i][j] = 0 else grid[i][j] = 1 end
+				if typ == "basic_robot:buttonlight_grey" then grid[i][j] = 0 else grid[i][j] = 1 end
 			end
 		end
 		return grid
@@ -145,7 +131,7 @@ if not grid then
 			if #coldata[k]>0 then sum = sum + coldata[k][#coldata[k]] else sum = n end
 			if sum == n then easy = easy + 1 end
 		end
-		easy = 5-easy;
+		easy = n-1-easy;
 		if easy < 0 then easy = 0 end
 		return easy
 	end
@@ -156,8 +142,8 @@ if not grid then
 			keyboard.set({x=spawnpos.x-n+j,y=spawnpos.y,z=spawnpos.z+i},0) -- clear
 			keyboard.set({x=spawnpos.x+j,y=spawnpos.y,z=spawnpos.z+2*n-i+1},0) -- clear
 			local typ;
-			if grid[j][i]==0 then typ = 2 else typ = 3 end
-			if not solved then typ = 2 end
+			if grid[j][i]==0 then typ = 13 else typ = 2 end
+			if not solved then typ = 13 end
 			keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},typ) --board
 		end
 	end
@@ -166,23 +152,24 @@ if not grid then
 	for i=1,n do
 		length = #rowdata[i]
 		for k = 1,length do
-			keyboard.set({x=spawnpos.x-length+k,y=spawnpos.y,z=spawnpos.z+i},rowdata[i][k]+7)
+			keyboard.set({x=spawnpos.x-length+k,y=spawnpos.y,z=spawnpos.z+i},rowdata[i][k]+17)
 		end
 	end
 	--render counts coloumns
 	for j=1,n do
 		length = #coldata[j]
 		for k = 1,length do
-			keyboard.set({x=spawnpos.x+j,y=spawnpos.y,z=spawnpos.z+k+n},coldata[j][k]+7) 
+			keyboard.set({x=spawnpos.x+j,y=spawnpos.y,z=spawnpos.z+k+n},coldata[j][k]+17) 
 		end
 	end
-	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z},4) -- game check button
-	keyboard.set({x=spawnpos.x+2,y=spawnpos.y,z=spawnpos.z},5) -- game check button
+	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z},9) -- game check button
+	keyboard.set({x=spawnpos.x+2,y=spawnpos.y,z=spawnpos.z},7) -- game check button
 
-	local players = find_player(4,spawnpos)
-	if not players then error("minesweeper: no players near") end
+	local players = find_player(6,spawnpos)
+	if not players then error("nonogram: no players near") end
 	local pname = players[1];
 	
+	self.listen_punch(self.pos()) -- attach punch listener
 	
 	--self.label()
 	
@@ -196,8 +183,12 @@ if not grid then
 		elseif difficulty == 2 then limit = 80 reward = 7
 		elseif difficulty <= 1 then limit = 70 reward = 6
 	end
+	if not scores[difficulty] then scores[difficulty] = {{"-",-999}} end
+	if not scores[difficulty][1] then scores[difficulty][1] = {"-",-999} end
+	
 	minetest.chat_send_player(pname, "nonogram difficulty " .. difficulty .. ". you will get " .. reward .. " gold if you solve it in faster than " .. limit .."s" ..
-	". Current record " .. highscore[difficulty][2] .. " by " .. highscore[difficulty][1])
+	". Current record " .. -scores[difficulty][1][2] .. " by " .. scores[difficulty][1][1])
+	
 	
 end
 
@@ -220,12 +211,13 @@ if event then
 				end
 				
 				-- highscore
-				if t<highscore[difficulty][2] then 
-					say("nonogram: new record " .. t .. " s ! old record " .. highscore[difficulty][2] .. "s by " .. highscore[difficulty][1])
-					highscore[difficulty] = {event.puncher, t}
-					rom.score = get_score_string(highscore)
-					book.write(1,"scores", rom.score)
+				if add_score(scores,event.puncher,-t,difficulty) then
+					say("nonogram difficulty " .. difficulty .. ": new record " .. t .. " s !")
+					local sdata = scores[difficulty];
+					local out = {"TOP 5 PLAYERS/TIMES: "}; for i=1,#sdata do out[#out+1] = sdata[i][1] .. " " .. -sdata[i][2].."," end say(table.concat(out," "))
+					book.write(1,"scores", minetest.serialize(scores))
 				end
+				
 				
 				if reward>0 then
 					local player = _G.minetest.get_player_by_name(event.puncher);
@@ -244,7 +236,7 @@ if event then
 			for i=1,n do
 				for j =1,n do
 					local typ;
-					if grid[j][i]==0 then typ = 2 else typ = 3 end
+					if grid[j][i]==0 then typ = 13 else typ = 2 end
 					keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},typ) 
 				end
 			end
@@ -255,7 +247,7 @@ if event then
 		if i>0 and i<=n and j>0 and j<=n then
 			local typ = keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j});
 			local newtyp;
-			if typ == "basic_robot:button808080" then newtyp = 3 
+			if typ ~= "basic_robot:buttonlight_grey" then newtyp = 13 
 				else newtyp = 2 
 			end
 			keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},newtyp);

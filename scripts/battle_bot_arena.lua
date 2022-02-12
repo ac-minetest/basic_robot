@@ -1,9 +1,33 @@
+--battle bots
+
+-- example program for team 4, other team is 5. each of players writes program and puts it in book,
+-- book 1 program for team 4, book 2 program for team 5
+
+
+--[[ 
+DEMO PROGRAM: just move all your bots in direction 1,0 and attack while moving
+
+for i = 1,#bots[TYPE] do -- move all bots of team 4 in direction {x=1,z=0}
+	if read_bots(TYPE,i) then -- is bot alive?
+		move_bot(i,1,0)
+		attack_bot(i,1,0) -- try to attack in move direction
+	end
+end
+
+--]]
+
 if not s then
 -- init
 bots = {[4] = {}, [5] = {}}; -- [type] = {{1,1,10}, {3,2,10}}; -- {x,y,hp}
 arena = {};  --[x][z] = {type, idx}
-for i = -10,10 do arena[i] = {} for j=-10,10 do arena[i][j] = {0,0} end end
+
 centerpos = self.spawnpos(); centerpos.y = centerpos.y+2
+for i = -10,10 do arena[i] = {} for j=-10,10 do 
+arena[i][j] = {0,0} 
+keyboard.set({x=centerpos.x+i,y=centerpos.y-1,z=centerpos.z+j},1) -- build arena
+keyboard.set({x=centerpos.x+i,y=centerpos.y,z=centerpos.z+j},0)
+end end
+
 TYPE = 4; -- 4,5 defines which bots are on the move/attack
 DIR = 1
 s=0
@@ -67,7 +91,7 @@ prog1, _ = _G.loadstring( script1 ); prog2, _ = _G.loadstring( script2 );
 	end
 end
 
-if t%10 == 0 then
+if t%10 == 0 then -- spawn new bot for each time every 10 seconds!
 	spawn_bot(0,-10,4)
 	spawn_bot(0,10,5)
 end

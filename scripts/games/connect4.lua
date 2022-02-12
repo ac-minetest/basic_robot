@@ -1,15 +1,17 @@
 -- CONNECT, coded in 20 minutes by rnd
 if not data then
-	m=8;n=8;turn = 0; num = 4;
+	m=10;n=10;turn = 0; num = 4;
+
 	self.spam(1);t0 = _G.minetest.get_gametime();
 	spawnpos = self.spawnpos() -- place mines
+	self.listen_punch(self.pos()) -- attach punch listener
 	state = 0; -- 0 signup 1 game
 	players = {};
 	data = {};
 	for i = 1,m do data[i]={}; for j = 1,n do data[i][j]=0 end end
 	for i = 1,m do for j = 1,n do  -- render game
-		if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j})~="basic_robot:button808080" then
-			keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},2)
+		if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j})~="basic_robot:buttonlight_gray" then
+			keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},13)
 		end
 	end	end
 	
@@ -34,18 +36,23 @@ if not data then
 		return c1
 	end
 	
-	self.label("CONNECT 4 : GREEN starts play. 2 players punch to join game.")		
+	self.label("TRY TO GET FIRST " .. num .. " IN A ROW! : GREEN starts play. 2 players punch to join game.")		
 end
 
 event = keyboard.get();
 if event then
 	local x = event.x - spawnpos.x;local y = event.y - spawnpos.y;local z = event.z - spawnpos.z;
 	if x<1 or x>m or z<1 or z>n then
-	elseif event.type == 2 then --if event.type == 2 then
+	elseif event.type == 13 then --if event.type == 2 then
 			if state == 0 then
-				if #players<2 then players[#players+1] = event.puncher
+				if #players<2 then players[#players+1] = event.puncher -- 1 is green, turn 0 = green
 				else state = 1 end
 				if #players==2 then state = 1 end
+			end
+			if event.puncher == players[1] then -- green
+				if turn~=0 then return end -- ignore if not player turn
+			else
+				if turn~=1 then return end
 			end
 			keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},4+turn);
 			data[x][z] = 4+turn;

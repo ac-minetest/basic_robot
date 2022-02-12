@@ -2,14 +2,16 @@
 --https://en.wikipedia.org/wiki/Black_Box_(game)
 
 if not data then
-	m=16;n=16;
-	atoms = 32
+-- novice: 8x8, 4
+	m=9;n=9;
+	atoms = 16
 	attempts = 1;turn = 0; 
-	spawnpos = self.spawnpos();	spawnpos.x = spawnpos.x-m/2; spawnpos.y = spawnpos.y+2; spawnpos.z = spawnpos.z-n/2 
+	spawnpos = self.spawnpos();	spawnpos.x = spawnpos.x-math.floor(m/2); spawnpos.y = spawnpos.y+2; spawnpos.z = spawnpos.z-math.floor(n/2)
 	
 	local players = find_player(5,spawnpos);
 	if not player then self.remove() else pname = players[1] end
-	
+
+	self.listen_punch(self.pos()) -- attach punch listener
 	self.spam(1);t0 = _G.minetest.get_gametime();
 	data = {};
 	for i = 1,m do data[i]={}; for j = 1,n do data[i][j]=0 end end
@@ -183,6 +185,7 @@ end
 event = keyboard.get();
 if event then
 	local x = event.x - spawnpos.x;local y = event.y - spawnpos.y;local z = event.z - spawnpos.z;
+	
 	if x<1 or x>m or z<1 or z>n then
 		if event.type == 4 then
 			if check_solution() then
