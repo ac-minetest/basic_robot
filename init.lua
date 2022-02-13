@@ -678,7 +678,7 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	--]]
 	
 	--script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-	script = string.gsub(script,"%-%-[^\n]+","") -- strip single line comments, multiline not allowed
+	script = string.gsub(script,"%-%-[^\n]+\n","\n") -- strip single line comments, multiline not allowed
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _Gc = _Gc + 1; if _Gc > " .. call_limit .. 
 	" then _Gerror(\"Execution count \".. _Gc .. \" exceeded ".. call_limit .. "\") end; "

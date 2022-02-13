@@ -1,12 +1,14 @@
 --coroutine
---lights out, game by dopik, 2018?
+--lights out by dopik
+
 
 if not init then init = true
 	self.listen_punch(self.pos());
 end
 
+
 size = 5
-pname = "dopik"
+
 score = 1000 --highest score possible
 
 function generateField()
@@ -29,6 +31,7 @@ function generateField()
 	return field
 end
 
+
 function placeField(field)
 	for i = 1, size^2 do
 		local dx,dz = (i-1) % size +1, math.floor((i-1) / size) +1
@@ -37,50 +40,50 @@ function placeField(field)
 		pos.x = pos.x + dx
 		pos.z = pos.z + dz
 		
-		keyboard.set(pos, field[i]*4 + 1)
+		keyboard.set(pos, field[i]*6 + 1)
 	end
 end
 
 function hitKey(pos)
 	local c
 	
-	if keyboard.read(pos) == "basic_robot:buttonFFFFFF" then
+	if keyboard.read(pos) == "basic_robot:buttonwhite" then
 		c = true
-		keyboard.set(pos, 5)
-	elseif keyboard.read(pos) == "basic_robot:button8080FF" then
+		keyboard.set(pos, 7)
+	elseif keyboard.read(pos) == "basic_robot:buttonblue" then
 		keyboard.set(pos, 1)
 	end
 	
 	pos.x = pos.x - 1
-	if keyboard.read(pos) == "basic_robot:buttonFFFFFF" then
+	if keyboard.read(pos) == "basic_robot:buttonwhite" then
 		c = true
-		keyboard.set(pos, 5)
-	elseif keyboard.read(pos) == "basic_robot:button8080FF" then
+		keyboard.set(pos, 7)
+	elseif keyboard.read(pos) == "basic_robot:buttonblue" then
 		keyboard.set(pos, 1)
 	end
 	
 	pos.x = pos.x + 2
-	if keyboard.read(pos) == "basic_robot:buttonFFFFFF" then
+	if keyboard.read(pos) == "basic_robot:buttonwhite" then
 		c = true
-		keyboard.set(pos, 5)
-	elseif keyboard.read(pos) == "basic_robot:button8080FF" then
+		keyboard.set(pos, 7)
+	elseif keyboard.read(pos) == "basic_robot:buttonblue" then
 		keyboard.set(pos, 1)
 	end
 	
 	pos.x = pos.x - 1
 	pos.z = pos.z - 1
-	if keyboard.read(pos) == "basic_robot:buttonFFFFFF" then
+	if keyboard.read(pos) == "basic_robot:buttonwhite" then
 		c = true
-		keyboard.set(pos, 5)
-	elseif keyboard.read(pos) == "basic_robot:button8080FF" then
+		keyboard.set(pos, 7)
+	elseif keyboard.read(pos) == "basic_robot:buttonblue" then
 		keyboard.set(pos, 1)
 	end
 	
 	pos.z = pos.z + 2
-	if keyboard.read(pos) == "basic_robot:buttonFFFFFF" then
+	if keyboard.read(pos) == "basic_robot:buttonwhite" then
 		c = true
-		keyboard.set(pos, 5)
-	elseif keyboard.read(pos) == "basic_robot:button8080FF" then
+		keyboard.set(pos, 7)
+	elseif keyboard.read(pos) == "basic_robot:buttonblue" then
 		keyboard.set(pos, 1)
 	end
 	
@@ -97,7 +100,7 @@ function won()
 		pos.x = pos.x + 1 + i % size
 		pos.z = pos.z + 1 + math.floor(i / size)
 		
-		if keyboard.read(pos) == "basic_robot:button8080FF" then
+		if keyboard.read(pos) == "basic_robot:buttonblue" then
 			return false
 		end
 	end
