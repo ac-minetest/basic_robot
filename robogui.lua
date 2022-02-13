@@ -145,7 +145,8 @@ local help_pages = {
 		"  7. [TECHNIC FUNCTIONALITY]",
 		"  8. [CRYPTOGRAPHY]",
 		"  9. [PUZZLE]",
-		"  10.[COROUTINES] - easier alternative to finite state machines",
+		"  10.[COROUTINES AND LIBRARIES AND ROM] - easier alternative to",
+		"     finite state machines",
 	},
 	
 	["MOVEMENT DIGGING PLACING NODE SENSING"] = {
@@ -312,19 +313,29 @@ local help_pages = {
 		"  add_particle(def)"
 	},
 	
-		["COROUTINES"] = {
+		["COROUTINES AND LIBRARIES AND ROM"] = {
 		"back to [Commands reference]",
 		"COROUTINES","",
-		"robot can run code using lua coroutines. To enable this mode just put the word",
-		"coroutine in the first 32 characters of your program. Example: ", "",
+		"robot can run code using lua coroutines. To enable this mode just put",
+		"the word coroutine in the first 32 characters of your program. Example:",
 		" --testing program for coroutine",
 		"   for i = 1,5 do ",
 		"       say(i); dig.forward(); move.forward()",
 		"       pause()",
 		"   end",
 		"pause(amount) temporarily stops if available operations are less than",
-		"	amount"
+		"	amount","",
+		"LIBRARIES","",
+		"you can define functions for robot in another robot and re-use them later.",
+		"for example do: rom.lib_src = \"f1 = function(x) return 2*x end\" and later",
+		"in another robot recreate function with: ",
+		"if not f1 then code.run(rom.lib_src) end ",
+		"self.label(f1(1))","",
+	    "ROM","",
+		"all robots by a player share same \"rom\" variable that can be used to",
+		"store more persistent data like numbers, strings or tables",
 	},
+	
 
 	
 	

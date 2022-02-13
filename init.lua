@@ -1,34 +1,11 @@
--- basic_robot by rnd, 2016-2021
-
---todo: code.add(code1); code2 -> concatenates code1..code2 and runs
-
+-- basic_robot by rnd, 2016-2022
 
 basic_robot = {};
-------  SETTINGS  --------
-basic_robot.call_limit = {50,200,1500,10^9}; -- how many execution calls per script run allowed, for auth levels 0,1,2 (normal, robot, puzzle, admin)
-basic_robot.count = {2,6,16,128} -- how many robots player can have
+basic_robot.version = "2022/02/02b";
 
-basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
+dofile(minetest.get_modpath("basic_robot").."/settings.lua") -- read configuration SETTINGS
 
-basic_robot.admin_bot_pos = {x=0,y=1,z=0} -- position of admin robot spawner that will be run automatically on server start
-
-basic_robot.maxoperations = 10; -- how many operations (dig, place,move,...,generate energy,..) available per run,  0 = unlimited
-basic_robot.dig_require_energy = true; -- does robot require energy to dig stone?
-
-basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
-    ["moreblocks:circular_saw"] = true,
-	["craft_guide:sign_wall"] = true,
-	["basic_machines:battery_0"] = true,
-	["basic_machines:battery_1"] = true,
-	["basic_machines:battery_2"] = true,
-	["basic_machines:generator"] = true,
-}
------ END OF SETTINGS ------
-
-basic_robot.http_api = minetest.request_http_api(); 
-
-basic_robot.version = "2022/02/02a";
+-- structures for storing robot data
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -52,7 +29,6 @@ local check_code, preprocess_code,is_inside_string;
 
 
 -- SANDBOX for running lua code isolated and safely
-
 function getSandboxEnv (name)
 	
 	local authlevel = basic_robot.data[name].authlevel or 0;
@@ -63,9 +39,11 @@ function getSandboxEnv (name)
 		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
 		}
 	
-	if not basic_robot.data[name].rom then 
-		basic_robot.data[name].rom = {}
-	end -- create rom if not yet existing
+	local pname = string.sub(name,1,-2)
+	if not basic_robot.data[pname] then basic_robot.data[pname] = {} end
+	-- all robots by player share same rom now
+	if not basic_robot.data[pname].rom then basic_robot.data[pname].rom = {} end -- create rom if not yet existing
+
 	local env = 
 	{
 		_Gerror = error,
@@ -377,9 +355,8 @@ function getSandboxEnv (name)
 			end,
 		},
 			
-		rom = basic_robot.data[name].rom,
-		_Gc = basic_robot.data[name]._Gc or 0,
-		
+		rom = basic_robot.data[pname].rom,
+	
 		string = {
 			byte = string.byte,	char = string.char,
 			find = string.find,
@@ -534,7 +511,7 @@ function getSandboxEnv (name)
 		
 			setfenv( ScriptFunc, basic_robot.data[name].sandbox )
 		
-			local Result, RuntimeError = pcall( ScriptFunc );
+			local _, RuntimeError = pcall( ScriptFunc );
 			if RuntimeError then
 				minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
 				return false
@@ -820,7 +797,7 @@ local function runSandbox( name)
 	end	
 	
 	data.operations = basic_robot.maxoperations;
-	data.t = os.clock()
+	data.t = os.clock() -- timing
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -1241,7 +1218,6 @@ local spawn_robot = function(pos,node,ttl)
 	if data == nil then
 		basic_robot.data[name] = {};
 		data = basic_robot.data[name];
-		--data.rom = {};
 	end
 	
 	data.owner = owner;
