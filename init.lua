@@ -1,5 +1,7 @@
 -- basic_robot by rnd, 2016-2021
 
+--todo: code.add(code1); code2 -> concatenates code1..code2 and runs
+
 
 basic_robot = {};
 ------  SETTINGS  --------
@@ -61,7 +63,9 @@ function getSandboxEnv (name)
 		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
 		}
 	
-	if not basic_robot.data[name].rom then basic_robot.data[name].rom = {} end -- create rom if not yet existing
+	if not basic_robot.data[name].rom then 
+		basic_robot.data[name].rom = {}
+	end -- create rom if not yet existing
 	local env = 
 	{
 		_Gerror = error,
@@ -374,7 +378,7 @@ function getSandboxEnv (name)
 		},
 			
 		rom = basic_robot.data[name].rom,
-		_Gc = basic_robot.data[name]._Gc,
+		_Gc = basic_robot.data[name]._Gc or 0,
 		
 		string = {
 			byte = string.byte,	char = string.char,
@@ -597,10 +601,13 @@ function getSandboxEnv (name)
 end
 
 -- code checker
+-- bugfixes:
+-- player Midskip found problem with code checking, fixed
+
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_G", "while%(", "while{", "pcall","[^%.]%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_G", "while%(", "while{", "pcall","[^%.]%.%.[^%.]","\\\"","\\\'","%[=*%["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -608,10 +615,7 @@ check_code = function(code)
   end
 end
 
--- bugfixes:
--- player Midskip found problem with code checking, fixed
-
-local identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
+identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
 
 	local i = 0; local j; local _; local length = string.len(code);
 	local mode = 0; -- 0: not in string, 1: in '...' string, 2: in "..." string, 3. in [==[ ... ]==] string
@@ -628,9 +632,13 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 		if mode == 0 then -- not yet inside string
 			for k=1,#modes do
 				j = string.find(code,modes[k][1],i);
-				if j and j<jmin and string.sub(code,j-1,j-1) ~="\\" then  -- pick closest one
-					jmin = j
-					mode = k
+				if j and j<jmin then  -- pick closest one
+					if string.sub(code,j-1,j-1) ~="\\" then
+						jmin = j
+						mode = k
+					else
+						j=j+1;
+					end
 				end
 			end
 			if mode ~= 0 then -- found something
@@ -641,10 +649,12 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 		else
 			_,j = string.find(code,modes[mode][2],i); -- search for closing pair
 			if not j then break end
-			if (mode~=2 or (string.sub(code,j-1,j-1) ~= "\\") or string.sub(code,j-2,j-1) == "\\\\") then -- not (" and not \" - but "\\" is allowed)
+			local pchar = string.sub(code,j-1,j-1)
+			if (mode~=2 or (pchar ~= "\\") or string.sub(code,j-2,j-1) == "\\\\") then -- not (" and not \" - but "\\" is allowed)
 				ret[#ret][2] = j
 				mode = 0
 			end
+			if pchar == "\\" then j=j+1 end
 		end
 		i=j -- move to next position
 	end
@@ -690,8 +700,8 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	when counter exceeds limit exit with error
 	--]]
 	
-	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-
+	--script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
+	script = string.gsub(script,"%-%-[^\n]+","") -- strip single line comments, multiline not allowed
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _Gc = _Gc + 1; if _Gc > " .. call_limit .. 
 	" then _Gerror(\"Execution count \".. _Gc .. \" exceeded ".. call_limit .. "\") end; "
