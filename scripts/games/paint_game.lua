@@ -1,26 +1,25 @@
 -- paint canvas by rnd, 2018
 if not init then
 	colors = {
-	"black","blue","brown","cyan","dark_green","dark_grey","green","grey",
-	"magenta","orange","pink","red","violet","white","yellow"
+	"white","yellow","orange","red","magenta","purple","blue","cyan",
+	"green","dark_green","brown","tan","light_grey","medium_grey","dark_grey","black"
 	}
 	invcolors = {};	for i = 1,#colors do invcolors[colors[i]] = i end
 	
-	color = 1;
+	color = invcolors["black"];
 	size = 16;
 	
 	init = true
 	
 	local ent = _G.basic_robot.data[self.name()].obj:get_luaentity();
-	ent.timestep = 0.5
+	ent.timestep = 0.125
 	
 	players = find_player(5); 	if not players then self.remove() end
 	player = _G.minetest.get_player_by_name(players[1])
 	self.label("-> " .. players[1])
 	
 	spos = self.spawnpos(); spos.y=spos.y+1;
-	
-	canvasn = "wool:white"
+	canvasn = "basic_robot:buttonwhite"
 	reset_canvas = function()
 		for i = 1, size do
 			for j = 1, size do
@@ -29,16 +28,17 @@ if not init then
 		end	
 	end
 	reset_canvas()
-	
+
 	save_image = function()
 		local ret = {};
 		for i = 1, size do
 			for j = 1, size do
-				local nname = string.sub(minetest.get_node({x=spos.x +i , y = spos.y + j, z = spos.z }).name,6)
+				local nname = string.sub(minetest.get_node({x=spos.x +i , y = spos.y + j, z = spos.z }).name,19)
 				local pcolor = invcolors[nname] or 1;
 				ret[#ret+1]= string.char(96+pcolor)
 			end
-		end	
+		end
+
 		return table.concat(ret,"")
 	end
 	
@@ -49,7 +49,7 @@ if not init then
 			for j = 1, size do
 				k=k+1;
 				local pcolor = colors[string.byte(image,k)-96] or "black";
-				minetest.set_node({x=spos.x +i , y = spos.y + j, z = spos.z },{name = "wool:"..pcolor})
+				minetest.set_node({x=spos.x +i , y = spos.y + j, z = spos.z },{name = "basic_robot:button"..pcolor})
 			end
 		end	
 	end
@@ -57,7 +57,7 @@ if not init then
 	
 	--draw buttons
 	for i = 1,#colors do
-		minetest.set_node({x=spos.x +i , y = spos.y , z = spos.z },{name = "wool:"..colors[i]})
+		minetest.set_node({x=spos.x +i , y = spos.y , z = spos.z },{name = "basic_robot:button"..colors[i]})
 	end
 	
 	minetest.set_node({x=spos.x +1 , y = spos.y-1 , z = spos.z },{name = "basic_robot:button_83"})
@@ -88,7 +88,7 @@ if player:get_player_control().LMB then -- player interacts with 'virtual canvas
 		if x>0 and x<size and y>-2 and y<size then
 			if y>0 then -- above: painting
 				c.z = c.z+0.5
-				minetest.set_node(c, {name = "wool:" .. colors[color]})
+				minetest.set_node(c, {name = "basic_robot:button" .. colors[color]})
 			elseif y>-1 then -- color selection
 				x = 1+math.floor(x)
 				if colors[x] then

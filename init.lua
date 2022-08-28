@@ -1,32 +1,11 @@
--- basic_robot by rnd, 2016-2021
-
+-- basic_robot by rnd, 2016-2022
 
 basic_robot = {};
-------  SETTINGS  --------
-basic_robot.call_limit = {50,200,1500,10^9}; -- how many execution calls per script run allowed, for auth levels 0,1,2 (normal, robot, puzzle, admin)
-basic_robot.count = {2,6,16,128} -- how many robots player can have
+basic_robot.version = "2022/02/02b";
 
-basic_robot.radius = 32; -- divide whole world into blocks of this size - used for managing events like keyboard punches
-basic_robot.password = "raN___dOM_ p4S"; -- IMPORTANT: change it before running mod, password used for authentifications
+dofile(minetest.get_modpath("basic_robot").."/settings.lua") -- read configuration SETTINGS
 
-basic_robot.admin_bot_pos = {x=0,y=1,z=0} -- position of admin robot spawner that will be run automatically on server start
-
-basic_robot.maxoperations = 10; -- how many operations (dig, place,move,...,generate energy,..) available per run,  0 = unlimited
-basic_robot.dig_require_energy = true; -- does robot require energy to dig stone?
-
-basic_robot.bad_inventory_blocks = { -- disallow taking from these nodes inventories to prevent player abuses
-    ["moreblocks:circular_saw"] = true,
-	["craft_guide:sign_wall"] = true,
-	["basic_machines:battery_0"] = true,
-	["basic_machines:battery_1"] = true,
-	["basic_machines:battery_2"] = true,
-	["basic_machines:generator"] = true,
-}
------ END OF SETTINGS ------
-
-basic_robot.http_api = minetest.request_http_api(); 
-
-basic_robot.version = "2021/06/28a";
+-- structures for storing robot data
 
 basic_robot.gui = {}; local robogui = basic_robot.gui -- gui management
 basic_robot.data = {}; -- stores all robot related data
@@ -50,7 +29,6 @@ local check_code, preprocess_code,is_inside_string;
 
 
 -- SANDBOX for running lua code isolated and safely
-
 function getSandboxEnv (name)
 	
 	local authlevel = basic_robot.data[name].authlevel or 0;
@@ -61,7 +39,11 @@ function getSandboxEnv (name)
 		left_up = 11, right_up = 12, forward_up = 13,  backward_up = 14
 		}
 	
-	if not basic_robot.data[name].rom then basic_robot.data[name].rom = {} end -- create rom if not yet existing
+	local pname = string.sub(name,1,-2)
+	if not basic_robot.data[pname] then basic_robot.data[pname] = {} end
+	-- all robots by player share same rom now
+	if not basic_robot.data[pname].rom then basic_robot.data[pname].rom = {} end -- create rom if not yet existing
+
 	local env = 
 	{
 		_Gerror = error,
@@ -93,9 +75,11 @@ function getSandboxEnv (name)
 			return commands.craft(item, mode, idx, amount, name)
 		end,
 		
-		pause = function() -- pause coroutine
+		pause = function(amount) -- pause coroutine
 			if not basic_robot.data[name].cor then error("you must start program with '--coroutine' to use pause()") return end
-			coroutine.yield()
+			if not amount or basic_robot.data[name].operations<amount then
+				coroutine.yield()
+			end
 		end,
 		
 		self = {
@@ -103,7 +87,7 @@ function getSandboxEnv (name)
 			spawnpos = function() local pos = basic_robot.data[name].spawnpos; return {x=pos.x,y=pos.y,z=pos.z} end,
 			name = function() return name end,
 			operations = function() return basic_robot.data[name].operations end,
-			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=math.cos(yaw), y = 0, z=math.sin(yaw)} end,
+			viewdir = function() local yaw = basic_robot.data[name].obj:getyaw(); return {x=-math.sin(yaw), y = 0, z=math.cos(yaw)} end,
 			
 			set_properties = function(properties)
 				if not properties then return end; local obj = basic_robot.data[name].obj;
@@ -173,7 +157,7 @@ function getSandboxEnv (name)
 			reset = function()
 				local pos = basic_robot.data[name].spawnpos; 
 				local obj = basic_robot.data[name].obj;
-				obj:set_pos({x=pos.x,y=pos.y+1,z=pos.z}); obj:setyaw(0);
+				obj:set_pos({x=pos.x,y=pos.y+1,z=pos.z}); obj:set_yaw(0);
 			end,
 			
 			set_libpos = function(pos)
@@ -351,6 +335,8 @@ function getSandboxEnv (name)
 			write = function(i,title,text)
 				if i<=0 or i > 32 then return nil end
 				local inv = minetest.get_meta(basic_robot.data[name].spawnpos):get_inventory();
+				local stackname = inv:get_stack("library",i):get_name();
+				if basic_robot.data[name].authlevel<3 and (stackname ~= "default:book_written" and stackname~= "default:book") then return nil end
 				local stack = basic_robot.commands.write_book(basic_robot.data[name].owner,title,text);
 				if stack then inv:set_stack("library", i, stack) end
 			end
@@ -369,8 +355,8 @@ function getSandboxEnv (name)
 			end,
 		},
 			
-		rom = basic_robot.data[name].rom,
-		
+		rom = basic_robot.data[pname].rom,
+	
 		string = {
 			byte = string.byte,	char = string.char,
 			find = string.find,
@@ -525,7 +511,7 @@ function getSandboxEnv (name)
 		
 			setfenv( ScriptFunc, basic_robot.data[name].sandbox )
 		
-			local Result, RuntimeError = pcall( ScriptFunc );
+			local _, RuntimeError = pcall( ScriptFunc );
 			if RuntimeError then
 				minetest.chat_send_player(name, "#code.run: run error " .. RuntimeError )
 				return false
@@ -592,10 +578,13 @@ function getSandboxEnv (name)
 end
 
 -- code checker
+-- bugfixes:
+-- player Midskip found problem with code checking, fixed
+
 
 check_code = function(code)
   --"while ", "for ", "do ","goto ",  
-  local bad_code = {"repeat", "until", "_G", "while%(", "while{", "pcall","%.%.[^%.]"} --,"\\\"", "%[=*%[","--[["}
+  local bad_code = {"repeat", "until", "_G", "while%(", "while{", "pcall","[^%.]%.%.[^%.]","\\\"","\\\'","%[=*%["}
   for _, v in pairs(bad_code) do
     if string.find(code, v) then
       return v .. " is not allowed!";
@@ -603,8 +592,7 @@ check_code = function(code)
   end
 end
 
-
-local identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
+identify_strings = function(code) -- returns list of positions {start,end} of literal strings in lua code
 
 	local i = 0; local j; local _; local length = string.len(code);
 	local mode = 0; -- 0: not in string, 1: in '...' string, 2: in "..." string, 3. in [==[ ... ]==] string
@@ -622,8 +610,12 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 			for k=1,#modes do
 				j = string.find(code,modes[k][1],i);
 				if j and j<jmin then  -- pick closest one
-					jmin = j
-					mode = k
+					if string.sub(code,j-1,j-1) ~="\\" then
+						jmin = j
+						mode = k
+					else
+						j=j+1;
+					end
 				end
 			end
 			if mode ~= 0 then -- found something
@@ -634,10 +626,12 @@ local identify_strings = function(code) -- returns list of positions {start,end}
 		else
 			_,j = string.find(code,modes[mode][2],i); -- search for closing pair
 			if not j then break end
-			if (mode~=2 or (string.sub(code,j-1,j-1) ~= "\\") or string.sub(code,j-2,j-1) == "\\\\") then -- not (" and not \" - but "\\" is allowed)
+			local pchar = string.sub(code,j-1,j-1)
+			if (mode~=2 or (pchar ~= "\\") or string.sub(code,j-2,j-1) == "\\\\") then -- not (" and not \" - but "\\" is allowed)
 				ret[#ret][2] = j
 				mode = 0
 			end
+			if pchar == "\\" then j=j+1 end
 		end
 		i=j -- move to next position
 	end
@@ -683,8 +677,8 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	when counter exceeds limit exit with error
 	--]]
 	
-	script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
-
+	--script = script:gsub("%-%-%[%[.*%-%-%]%]",""):gsub("%-%-[^\n]*\n","\n") -- strip comments
+	script = string.gsub(script,"%-%-[^\n]+\n","\n") -- strip single line comments, multiline not allowed
 	-- process script to insert call counter in every function
 	local _increase_ccounter = " _Gc = _Gc + 1; if _Gc > " .. call_limit .. 
 	" then _Gerror(\"Execution count \".. _Gc .. \" exceeded ".. call_limit .. "\") end; "
@@ -746,7 +740,7 @@ preprocess_code = function(script, call_limit)  -- version 07/24/2018
 	-- must reset ccounter when paused, but user should not be able to force reset by modifying pause!
 	-- (suggestion about 'pause' by Kimapr, 09/26/2019)
 	
-	return "_Gc = 0 local _Gpause = pause pause = function() _Gc = 0; _Gpause() end " .. script;
+	return "_Gc = 0 local _Gpause = pause pause = function(amount) _Gc = 0; _Gpause(amount) end " .. script;
 	
 	--return script:gsub("pause%(%)", "_c_ = 0; pause()") -- reset ccounter at pause
 end
@@ -803,7 +797,7 @@ local function runSandbox( name)
 	end	
 	
 	data.operations = basic_robot.maxoperations;
-	data.t = os.clock()
+	data.t = os.clock() -- timing
 	
 	setfenv( ScriptFunc, data.sandbox )
 	
@@ -1052,7 +1046,7 @@ minetest.register_entity("basic_robot:robot",{
 					minetest.set_node(pos, {name = "air"});
 					--local privs = core.get_player_privs(self.owner);privs.interact = false; 
 					--core.set_player_privs(self.owner, privs); minetest.auth_reload()
-					minetest.kick_player(self.owner, "#basic_robot: stack overflow")
+					minetest.kick_player(self.owner, "#basic_robot: stack overflow at " .. pos.x.. " " .. pos.y .. " " .. pos.z)
 				end
 				
 				local name = self.name;
@@ -1224,7 +1218,6 @@ local spawn_robot = function(pos,node,ttl)
 	if data == nil then
 		basic_robot.data[name] = {};
 		data = basic_robot.data[name];
-		--data.rom = {};
 	end
 	
 	data.owner = owner;
@@ -1707,7 +1700,6 @@ minetest.register_node("basic_robot:spawner", {
 	paramtype = "light",
 	param1=1,
 	walkable = true,
-	alpha = 150,
 
 	after_place_node = function(pos, placer)
 		
@@ -1830,6 +1822,8 @@ end
 
 
 -- remote control
+
+local write_keyevent = basic_robot.commands.write_keyevent;
 minetest.register_craftitem("basic_robot:control", {
 	description = "Robot remote control",
 	inventory_image = "control.png",
@@ -1868,7 +1862,9 @@ minetest.register_craftitem("basic_robot:control", {
 			local hppos = minetest.hash_node_position(ppos)
 			local rname = basic_robot.data.punchareas[hppos];
 			local data = basic_robot.data[rname];
-			if data then data.keyboard = {x=pos.x,y=pos.y,z=pos.z, puncher = owner, type = 0} end
+			if data then 
+				write_keyevent(data,pos, owner,0)
+			end
 			return
 		end
 		

@@ -1,7 +1,12 @@
 -- REDSTONE EMULATOR & EDITOR 
---v 06/28/2018a
+--v 28/06/2018a, fixed 28/08/2022a
 
 if not init then
+	dout = function(text) say(text,"rnd") end
+	seri = function(tab) 
+		local out = {} for k,v in pairs(tab) do if type(v) ~= "function" then out[#out+1] = k .. " = " .. v end end 
+		return "{"..table.concat(out,",") .."}"
+	end
 	local players = find_player(5);
 	if not players then 
 		name = "";
@@ -12,17 +17,17 @@ if not init then
 		inv:set_stack("main", 8, puzzle.ItemStack("basic_robot:control 1 0 \"@\"")) -- add controller in players inventory
 		--add items for building
 		inv:set_stack("main", 1, puzzle.ItemStack("default:pick_diamond"))
-		inv:set_stack("main", 2, puzzle.ItemStack("basic_robot:button_273 999")) -- switch 9 = 273/274
-		inv:set_stack("main", 3, puzzle.ItemStack("basic_robot:button_275 999")) -- button 7 = 275/276
-		inv:set_stack("main", 4, puzzle.ItemStack("basic_robot:button_277 999")) -- equalizer 61 = 277
-		inv:set_stack("main", 5, puzzle.ItemStack("basic_robot:button_278 999")) -- setter 15 = 278
-		inv:set_stack("main", 6, puzzle.ItemStack("basic_robot:button_279 999")) -- piston 171 = 279
-		inv:set_stack("main", 7, puzzle.ItemStack("basic_robot:button_282 999")) -- delayer 232 = 282
-		inv:set_stack("main", 9, puzzle.ItemStack("basic_robot:button_281 999")) -- NOT 33 = 281
-		inv:set_stack("main", 10, puzzle.ItemStack("basic_robot:button_280 999")) -- diode 175 = 280
-		inv:set_stack("main", 11, puzzle.ItemStack("basic_robot:button_283 999")) -- platform 22 = 283
-		inv:set_stack("main", 12, puzzle.ItemStack("basic_robot:button_284 999")) -- giver 23 150/284 
-		inv:set_stack("main", 13, puzzle.ItemStack("basic_robot:button_285 999")) -- checker 24 151/285
+		inv:set_stack("main", 2, puzzle.ItemStack("basic_robot:button_283 999")) -- switch 9 = 283/284
+		inv:set_stack("main", 3, puzzle.ItemStack("basic_robot:button_285 999")) -- button 7 = 285/286
+		inv:set_stack("main", 4, puzzle.ItemStack("basic_robot:button_287 999")) -- equalizer 61 = 287
+		inv:set_stack("main", 5, puzzle.ItemStack("basic_robot:button_288 999")) -- setter 15 = 288
+		inv:set_stack("main", 6, puzzle.ItemStack("basic_robot:button_289 999")) -- piston 171 = 289
+		inv:set_stack("main", 7, puzzle.ItemStack("basic_robot:button_292 999")) -- delayer 232 = 292
+		inv:set_stack("main", 9, puzzle.ItemStack("basic_robot:button_291 999")) -- NOT 33 = 291
+		inv:set_stack("main", 10, puzzle.ItemStack("basic_robot:button_290 999")) -- diode 175 = 290
+		inv:set_stack("main", 11, puzzle.ItemStack("basic_robot:button_293 999")) -- platform 22 = 293
+		inv:set_stack("main", 12, puzzle.ItemStack("basic_robot:button_294 999")) -- giver 23 150/294 
+		inv:set_stack("main", 13, puzzle.ItemStack("basic_robot:button_295 999")) -- checker 24 151/295
 
 		
 		local round = math.floor; protector_position = function(pos) local r = 32;local ry = 2*r; return {x=round(pos.x/r+0.5)*r,y=round(pos.y/ry+0.5)*ry,z=round(pos.z/r+0.5)*r}; end
@@ -34,6 +39,7 @@ if not init then
 	end
 	
 	init = true
+	self.listen_punch(self.pos()); -- attach punch listener
 	self.spam(1)
 	self.label(colorize("orange","REDSTONE EMULATOR/EDITOR"))
 	
@@ -51,13 +57,13 @@ if not init then
 	toggle_button_action = function(mode,pos,ttl) -- SIMPLE TOGGLE BUTTONS - SWITCH
 		if not ttl or ttl <=0 then return end
 		if mode == 1 then -- turn on
-			puzzle.set_node(pos,{name = "basic_robot:button_274"})
+			puzzle.set_node(pos,{name = "basic_robot:button_284"})
 			local meta = puzzle.get_meta(pos); 
 			if not meta then return end
 			local n = meta:get_int("n");
 			for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 		else -- turn off
-			puzzle.set_node(pos,{name = "basic_robot:button_273"})
+			puzzle.set_node(pos,{name = "basic_robot:button_283"})
 			local meta = puzzle.get_meta(pos); 
 			if not meta then return end
 			local n = meta:get_int("n");
@@ -69,13 +75,13 @@ if not init then
 	button_action = function(mode,pos,ttl) 	-- SIMPLE ON BUTTON, TOGGLES BACK OFF after 1s
 		if not ttl or ttl <=0 then return end
 		if mode == 0 then return end
-		puzzle.set_node(pos,{name = "basic_robot:button_276"})
+		puzzle.set_node(pos,{name = "basic_robot:button_286"})
 		local meta = puzzle.get_meta(pos); 
 		if not meta then return end
 		local n = meta:get_int("n");
 		
 		minetest.after(1, function() 
-			puzzle.set_node(pos,{name = "basic_robot:button_275"})
+			puzzle.set_node(pos,{name = "basic_robot:button_285"})
 			for i = 1,n do activate(0,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
 		end)
 		for i = 1,n do activate(1,{x=meta:get_int("x"..i)+pos.x,y=meta:get_int("y"..i)+pos.y,z=meta:get_int("z"..i)+pos.z},ttl) end
@@ -294,25 +300,25 @@ if not init then
 	
 	-- THESE REACT WHEN PUNCHED
 	interactive_elements = {
-		[275] = {button_action,1}, -- BUTTON, 1 means it activates(ON) on punch
-		[273] = {toggle_button_action,1}, -- TOGGLE BUTTON_OFF
-		[274] = {toggle_button_action,0}, -- TOGGLE BUTTON_ON, 0 means it deactivates
-		[284] = {giver_action,0}, -- GIVER: give player item below it when activated and activate targets after that
-		[285] = {checker_action,0}, -- CHECKER: check if player has block below it in inventory, remove it and activate targets after that
+		[285] = {button_action,1}, -- BUTTON, 1 means it activates(ON) on punch
+		[283] = {toggle_button_action,1}, -- TOGGLE BUTTON_OFF
+		[284] = {toggle_button_action,0}, -- TOGGLE BUTTON_ON, 0 means it deactivates
+		[294] = {giver_action,0}, -- GIVER: give player item below it when activated and activate targets after that
+		[295] = {checker_action,0}, -- CHECKER: check if player has block below it in inventory, remove it and activate targets after that
 	}
 	
 	-- THESE CAN BE ACTIVATED WITH SIGNAL
 	active_elements = {
-		["basic_robot:button_275"] = button_action, -- BUTTON, what action to do on activate
-		["basic_robot:button_273"] = toggle_button_action, -- TOGGLE BUTTON_OFF
-		["basic_robot:button_274"] = toggle_button_action, -- TOGGLE BUTTON_ON
-		["basic_robot:button_278"] = setter_action, -- SETTER
-		["basic_robot:button_277"] = equalizer_action, -- EQUALIZER
-		["basic_robot:button_279"] = piston_action, -- PISTON
-		["basic_robot:button_283"] = platform_action, -- PLATFORM
-		["basic_robot:button_282"] = delayer_action, -- DELAYER
-		["basic_robot:button_280"] = diode_action, -- DIODE
-		["basic_robot:button_281"] = not_action, -- NOT
+		["basic_robot:button_285"] = button_action, -- BUTTON, what action to do on activate
+		["basic_robot:button_283"] = toggle_button_action, -- TOGGLE BUTTON_OFF
+		["basic_robot:button_284"] = toggle_button_action, -- TOGGLE BUTTON_ON
+		["basic_robot:button_288"] = setter_action, -- SETTER
+		["basic_robot:button_287"] = equalizer_action, -- EQUALIZER
+		["basic_robot:button_289"] = piston_action, -- PISTON
+		["basic_robot:button_293"] = platform_action, -- PLATFORM
+		["basic_robot:button_292"] = delayer_action, -- DELAYER
+		["basic_robot:button_290"] = diode_action, -- DIODE
+		["basic_robot:button_291"] = not_action, -- NOT
 	}
 	
 
@@ -324,19 +330,19 @@ if not init then
 	
 	-- blocks that can be activated
 	edit.active_elements = {
-		["basic_robot:button_275"] = "button: now select one or more targets", -- button
-		["basic_robot:button_273"] = "switch: now select one or more targets", -- switch OFF
-		["basic_robot:button_274"] = "switch: now select one or more targets", -- switch ON
-		["basic_robot:button_278"] = "setter: target1 defines what material wall will use, target2/3 defines where wall will be", -- setter
-		["basic_robot:button_277"] = "equalizer: target1 and target2 are for comparison, other targets are activated", -- equalizer
-		["basic_robot:button_279"] = "piston: push block at target1 in direction away from piston", -- equalizer
-		["basic_robot:button_283"] = "platform: select target1 to set origin, target2 for direction", -- PLATFORM
-		["basic_robot:button_282"] = "delayer: distance from delayer to target1 determines delay", -- delayer
-		["basic_robot:button_280"] = "diode: only pass through ON signal",  -- DIODE
-		["basic_robot:button_281"] = "NOT gate: negates the signal", -- NOT
+		["basic_robot:button_285"] = "button: now select one or more targets", -- button
+		["basic_robot:button_283"] = "switch: now select one or more targets", -- switch OFF
+		["basic_robot:button_284"] = "switch: now select one or more targets", -- switch ON
+		["basic_robot:button_288"] = "setter: target1 defines what material wall will use, target2/3 defines where wall will be", -- setter
+		["basic_robot:button_287"] = "equalizer: target1 and target2 are for comparison, other targets are activated", -- equalizer
+		["basic_robot:button_289"] = "piston: push block at target1 in direction away from piston", -- equalizer
+		["basic_robot:button_293"] = "platform: select target1 to set origin, target2 for direction", -- PLATFORM
+		["basic_robot:button_292"] = "delayer: distance from delayer to target1 determines delay", -- delayer
+		["basic_robot:button_290"] = "diode: only pass through ON signal",  -- DIODE
+		["basic_robot:button_291"] = "NOT gate: negates the signal", -- NOT
 
-		["basic_robot:button_284"] = "GIVER: give player item below it when activated and activate targets after that",
-		["basic_robot:button_285"] = "CHECKER: check if player has block below it in inventory, remove it and activate targets after that",
+		["basic_robot:button_294"] = "GIVER: give player item below it when activated and activate targets after that",
+		["basic_robot:button_295"] = "CHECKER: check if player has block below it in inventory, remove it and activate targets after that",
 	}
 		
 	linker_use = function(pos)
@@ -358,12 +364,12 @@ if not init then
 			local nodename = puzzle.get_node(pos).name;
 			local active_element = edit.active_elements[nodename]
 			if active_element and edit.source.x == pos.x and edit.source.y == pos.y and edit.source.z == pos.z then -- gui with more info
-				local form = "size[4,"..(0.75*n).."] label[0,-0.25; "..active_element .."]" ;
+				local form = "size[5,"..(0.75*n).."] label[0,-0.25; "..active_element .."]" ;
 				for i = 1,n do -- add targets as lines
 				  form = form .. 
-				  "button[0,".. (0.75*i-0.5) .. ";1,1;".."S"..i..";" .. "show " .. i .. "]"..
+				  "button[0,".. (0.75*i-0.5) .. ";1.25,1;".."S"..i..";" .. "show " .. i .. "]"..
 				  "button_exit[1,".. (0.75*i-0.5) .. ";1,1;".."E"..i..";" .. "edit " .. "]" ..
-				  "button_exit[2,".. (0.75*i-0.5) .. ";1,1;".."D"..i..";" .. "delete " .. "]"..
+				  "button_exit[2,".. (0.75*i-0.5) .. ";1.25,1;".."D"..i..";" .. "delete " .. "]"..
 				  "label[3,".. (0.75*i-0.25) .. "; " .. meta:get_int("x"..i) .. " " .. meta:get_int("y"..i) .. " " .. meta:get_int("z"..i) .."]"
 				end
 				self.show_form(name,form);
@@ -385,7 +391,7 @@ if not init then
 					expirationtime = 5,
 					velocity = {x=0, y=0,z=0},
 					size = 18,
-					texture = "010.png",
+					texture = "puzzle_button_on.png",
 					acceleration = {x=0,y=0,z=0},
 					collisiondetection = true,
 					collision_removal = true,			
@@ -429,7 +435,7 @@ if not init then
 			expirationtime = 5,
 			velocity = {x=0, y=0,z=0},
 			size = 18,
-			texture = "009.png",
+			texture = "puzzle_button_off.png",
 			acceleration = {x=0,y=0,z=0},
 			collisiondetection = true,
 			collision_removal = true,			
@@ -447,7 +453,8 @@ end
 
 opcount = 0
 event = keyboard.get() --  handle keyboard
-if event then
+
+if event and not player_:get_player_control().sneak then
 	if event.type == 0 then -- EDITING
 		if event.puncher == name then -- players in protection can edit -- not minetest.is_protected({x=event.x,y=event.y,z=event.z},event.puncher)
 			local wield_item = player_:get_wielded_item():get_name()
@@ -480,7 +487,7 @@ if sender then
 				expirationtime = 5,
 				velocity = {x=0, y=0,z=0},
 				size = 18,
-				texture = "010.png",
+				texture = "puzzle_button_on.png",
 				acceleration = {x=0,y=0,z=0},
 				collisiondetection = true,
 				collision_removal = true,			

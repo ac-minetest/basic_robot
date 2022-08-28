@@ -13,14 +13,15 @@ for i = 1, #objs do
   local luaent = objs[i]:get_luaentity();
   local entname = ""
   if luaent then 
-	entname = luaent.itemstring 
+	--entname = serialize(luaent)
+	entname = luaent.itemstring
 	if entname == "robot" then entname = entname .. " " .. luaent.name end
 	elseif objs[i]:is_player() then 
 		entname = "PLAYER " .. objs[i]:get_player_name() 
 	end
   
   local phash = round(p.x) .. " " .. round(p.y) .. " " .. round(p.z);
-  ret[phash] = (ret[phash] or "") .. entname .. ", "
+  if entname then ret[phash] = (ret[phash] or "") .. entname .. ", " end
 end
 
 local out = {};
@@ -35,6 +36,9 @@ for i = 1, #out do
 end
 
 self.label("#objects " .. #objs .. "\n" .. table.concat(res, "\n"))
+
+--book.write(1,"",("#objects " .. #objs .. "\n" .. table.concat(res, "\n")))
+--self.remove()
 
 
 

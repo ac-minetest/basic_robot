@@ -3,10 +3,10 @@
 
 if not data then
 -- novice: 8x8, 4
-	m=8;n=8;
-	atoms = 8
+	m=9;n=9;
+	atoms = 16
 	attempts = 1;turn = 0; 
-	spawnpos = self.spawnpos();	spawnpos.x = spawnpos.x-m/2; spawnpos.y = spawnpos.y+2; spawnpos.z = spawnpos.z-n/2 
+	spawnpos = self.spawnpos();	spawnpos.x = spawnpos.x-math.floor(m/2); spawnpos.y = spawnpos.y+2; spawnpos.z = spawnpos.z-math.floor(n/2)
 	
 	local players = find_player(5,spawnpos);
 	if not player then self.remove() else pname = players[1] end
@@ -26,11 +26,11 @@ if not data then
 	render_board = function(mode) -- mode 0 : render without solution, 1: render solution
 		for i = 1,m do for j = 1,n do -- render game
 			if mode == 0 or data[i][j] == 0 then
-				if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j})~="basic_robot:button808080" then
-					keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},2)
+				if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j})~="basic_robot:buttongray" then
+					keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},15) -- 2 gray
 				end
 			else
-				keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},3)
+				keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j},4) --on 3
 			end
 		end	end
 	end
@@ -126,8 +126,8 @@ if not data then
 	-- initial border loop and marking
 	
 	--render blue border
-	for i = 1,m do keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+0},5) keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+n+1},5) end
-	for j = 1,n do keyboard.set({x=spawnpos.x+0,y=spawnpos.y,z=spawnpos.z+j},5) keyboard.set({x=spawnpos.x+m+1,y=spawnpos.y,z=spawnpos.z+j},5) end
+	for i = 1,m do keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+0},7) keyboard.set({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+n+1},7) end
+	for j = 1,n do keyboard.set({x=spawnpos.x+0,y=spawnpos.y,z=spawnpos.z+j},7) keyboard.set({x=spawnpos.x+m+1,y=spawnpos.y,z=spawnpos.z+j},7) end
 	
 	for i = 1,m do keyboard.set({x=spawnpos.x+i,y=spawnpos.y+1,z=spawnpos.z+0},0) keyboard.set({x=spawnpos.x+i,y=spawnpos.y+1,z=spawnpos.z+n+1},0) end
 	for j = 1,n do keyboard.set({x=spawnpos.x+0,y=spawnpos.y+1,z=spawnpos.z+j},0) keyboard.set({x=spawnpos.x+m+1,y=spawnpos.y+1,z=spawnpos.z+j},0) end
@@ -135,28 +135,28 @@ if not data then
 	
 	z=0 -- bottom
 	for x = 1,m do 
-		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:button8080FF" then
+		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:buttonblue" then
 			border_start_ray(x,z)
 		end
 	end
 	
 	x=m+1 -- right
 	for z = 1,n do 
-		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:button8080FF" then
+		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:buttonblue" then
 			border_start_ray(x,z)
 		end
 	end
 	
 	z=n+1 -- top
 	for x = m,1,-1 do 
-		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:button8080FF" then
+		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:buttonblue" then
 			border_start_ray(x,z)
 		end
 	end
 	
 	x=0 -- left
 	for z = n,1,-1 do 
-		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:button8080FF" then
+		if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:buttonblue" then
 			border_start_ray(x,z)
 		end
 	end
@@ -164,7 +164,7 @@ if not data then
 	check_solution = function()
 		for i = 1,m do
 			for j = 1,n do
-				if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j}) == "basic_robot:buttonFF8080" then -- red
+				if keyboard.read({x=spawnpos.x+i,y=spawnpos.y,z=spawnpos.z+j}) == "basic_robot:buttonred" then -- red
 					if data[i][j]~=1 then return false end
 				else
 					if data[i][j]~=0 then return false end
@@ -176,8 +176,8 @@ if not data then
 	
 	--render board
 	render_board(0)
-	keyboard.set({x=spawnpos.x,y=spawnpos.y,z=spawnpos.z-1},4)
-	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z-1},5)
+	keyboard.set({x=spawnpos.x,y=spawnpos.y,z=spawnpos.z-1},9)
+	keyboard.set({x=spawnpos.x+1,y=spawnpos.y,z=spawnpos.z-1},7)
 	self.label("BLACKBOX with " .. atoms .. " atoms")
 	
 end
@@ -185,23 +185,24 @@ end
 event = keyboard.get();
 if event then
 	local x = event.x - spawnpos.x;local y = event.y - spawnpos.y;local z = event.z - spawnpos.z;
+	--self.label(serialize(event))
 	if x<1 or x>m or z<1 or z>n then
-		if event.type == 4 then
+		if event.type == 9 then
 			if check_solution() then
 				say("#BLACKBOX : CONGRATULATIONS! " .. event.puncher .. " found all atoms after " .. attempts .. " tries."); self.remove()
 			else
 				say("#BLACKBOX : " .. event.puncher .. " failed to detect atoms after " .. attempts  .. " attempts.")
 				attempts = attempts+1
 			end
-		elseif event.type == 5 then
+		elseif event.type == 7 then
 			say("#BLACKBOX : DISPLAYING SOLUTION",pname)
 			render_board(1)
 			self.remove()
 		end
 	else -- interior punch
-			nodetype = 2;
-			if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:button808080" then 
-				nodetype = 3  
+			nodetype = 4;
+			if keyboard.read({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z}) == "basic_robot:buttonred" then 
+				nodetype = 15  
 			end
 			keyboard.set({x=spawnpos.x+x,y=spawnpos.y,z=spawnpos.z+z},nodetype);
 	end

@@ -595,6 +595,8 @@ local write_keyevent = function(data,pos, puncher,type)
 	
 end
 
+basic_robot.commands.write_keyevent = write_keyevent;
+
 local button_punched = function(pos, node, player,type)
 	local name = player:get_player_name(); if name==nil then return end
 	local round = math.floor;
@@ -609,8 +611,10 @@ local button_punched = function(pos, node, player,type)
 	end
 end
 
-local register_robot_button = function(R,G,B,type)
-	minetest.register_node("basic_robot:button"..R..G..B, 
+local buttoncolors = {};
+local register_robot_button = function(R,G,B,colorname,type)
+	buttoncolors[type] = "basic_robot:button"..colorname;
+	minetest.register_node("basic_robot:button"..colorname, 
 	 { 
 		description = "robot button",
 		tiles = {"robot_button.png^[colorize:#"..R..G..B..":180"},
@@ -624,12 +628,14 @@ local register_robot_button = function(R,G,B,type)
 end
 
 local register_robot_button_number = function(number,type)
+	local idx = number+48
+	local texname = "robochars.png^[sheet:16x16:" .. idx % 16 .. "," .. math.floor(idx/ 16).."^[invert:rgb";
 minetest.register_node("basic_robot:button"..number, 
  { 
 	description = "robot button",
-	tiles = {"robot_button".. number .. ".png"},
-	inventory_image = "robot_button".. number .. ".png",
-	wield_image = "robot_button".. number .. ".png",
+	tiles = {texname},
+	inventory_image = texname,
+	wield_image = texname,
 	paramtype2 = "facedir",
 
 	is_ground_content = false,
@@ -640,12 +646,14 @@ end
 
 
 local register_robot_button_char = function(number,type)
+	local texname = "robochars.png^[sheet:16x16:" .. number % 16 .. "," .. math.floor(number/ 16);
+--	local texname = string.format("%03d",number).. ".png";
 minetest.register_node("basic_robot:button_"..number, 
- { 
+  { 
 	description = "robot button",
-	tiles = {string.format("%03d",number).. ".png"},
-	inventory_image = string.format("%03d",number).. ".png",
-	wield_image = string.format("%03d",number).. ".png",
+	tiles = {texname},
+	inventory_image = texname,
+	wield_image = texname,
 	is_ground_content = false,
 	groups = {cracky=3,not_in_craft_guide = 1},
 	paramtype2 = "facedir",
@@ -654,45 +662,79 @@ minetest.register_node("basic_robot:button_"..number,
 end
 
 local register_robot_button_custom = function(number,texture)
-minetest.register_node("basic_robot:button_"..number, 
- { 
-	description = "robot button",
-	tiles = {texture .. ".png"},
-	inventory_image = texture .. ".png",
-	wield_image = texture .. ".png",
-	is_ground_content = false,
-	groups = {cracky=3,not_in_craft_guide = 1},
-	on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
+	local type = number
+	minetest.register_node("basic_robot:button_"..number, 
+	 { 
+		description = "robot button",
+		tiles = {texture .. ".png"},
+		inventory_image = texture .. ".png",
+		wield_image = texture .. ".png",
+		is_ground_content = false,
+		groups = {cracky=3,not_in_craft_guide = 1},
+		on_punch = function(pos, node,player) button_punched(pos, node,player,type)	end
 	})
 end
 
+--[[ colors!
+0 — white 	8 — green
+1 — yellow 	9 — dark green
+2 — orange 	10 — brown
+3 — red 	11 — tan
+4 — magenta 	12 — light grey
+5 — purple 	13 — medium grey
+6 — blue 	14 — dark grey
+7 — cyan 	15 — black 
+--]]
 
-register_robot_button("FF","FF","FF",1);
-register_robot_button("80","80","80",2);
+--16-color palette from macintosh II, 1987
+
+register_robot_button("FF","FF","FF","white",1);  -- white
+register_robot_button("FC","F4","00","yellow",2); -- yellow
+register_robot_button("FF","64","00","orange",3); -- orange
+register_robot_button("DD","02","02","red",4); -- red
+register_robot_button("F0","02","85","magenta",5); -- magenta
+register_robot_button("46","00","A5","purple",6); -- purple
+register_robot_button("00","00","D5","blue",7); -- blue
+register_robot_button("00","AE","E9","cyan",8); -- cyan
+register_robot_button("1A","B9","0C","green",9); -- green
+register_robot_button("00","64","08","dark_green",10);-- dark_green
+register_robot_button("57","28","00","brown",11);-- brown
+register_robot_button("91","71","35","tan",12);-- tan
+register_robot_button("C1","C1","C1","light_grey",13);-- light_grey
+register_robot_button("81","81","81","medium_grey",14);-- medium_grey
+register_robot_button("3E","3E","3E","dark_grey",15);-- dark_grey
+register_robot_button("00","00","00","black",16);-- black
+
+
+
+--[[ -- old colors
+register_robot_button("FF","FF","FF",1); 
+register_robot_button("80","80","80",2); 
 register_robot_button("FF","80","80",3);
 register_robot_button("80","FF","80",4);
 register_robot_button("80","80","FF",5);
 register_robot_button("FF","FF","80",6);
+--]]
 
-for i = 0,9 do register_robot_button_number(i,i+7) end
-for i = 0,255 do register_robot_button_char(i,i+17) end
+for i = 0,9 do register_robot_button_number(i,i+17) end -- all buttons shift by 10 from old version!
+for i = 0,255 do register_robot_button_char(i,i+27) end
 
-register_robot_button_custom(273,"puzzle_switch_off")
-register_robot_button_custom(274,"puzzle_switch_on")
-register_robot_button_custom(275,"puzzle_button_off")
-register_robot_button_custom(276,"puzzle_button_on")
+register_robot_button_custom(283,"puzzle_switch_off")
+register_robot_button_custom(284,"puzzle_switch_on")
+register_robot_button_custom(285,"puzzle_button_off")
+register_robot_button_custom(286,"puzzle_button_on")
 
-register_robot_button_custom(277,"puzzle_equalizer")
-register_robot_button_custom(278,"puzzle_setter")
-register_robot_button_custom(279,"puzzle_piston")
+register_robot_button_custom(287,"puzzle_equalizer")
+register_robot_button_custom(288,"puzzle_setter")
+register_robot_button_custom(289,"puzzle_piston")
 
-register_robot_button_custom(280,"puzzle_diode")
-register_robot_button_custom(281,"puzzle_NOT")
-register_robot_button_custom(282,"puzzle_delayer")
-register_robot_button_custom(283,"puzzle_platform")
+register_robot_button_custom(290,"puzzle_diode")
+register_robot_button_custom(291,"puzzle_NOT")
+register_robot_button_custom(292,"puzzle_delayer")
+register_robot_button_custom(293,"puzzle_platform")
 
-register_robot_button_custom(284,"puzzle_giver")
-register_robot_button_custom(285,"puzzle_checker")
+register_robot_button_custom(294,"puzzle_giver")
+register_robot_button_custom(295,"puzzle_checker")
 
 
 
@@ -730,22 +772,12 @@ basic_robot.commands.keyboard = {
 		local nodename;
 		if type == 0 then
 			nodename = "air"
-		elseif type == 1 then
-			nodename = "basic_robot:buttonFFFFFF";
-		elseif type == 2 then
-			nodename = "basic_robot:button808080";
-		elseif type == 3 then
-			nodename = "basic_robot:buttonFF8080";
-		elseif type == 4 then
-			nodename = "basic_robot:button80FF80";
-		elseif type == 5 then
-			nodename = "basic_robot:button8080FF";
-		elseif type == 6 then
-			nodename = "basic_robot:buttonFFFF80";
-		elseif type>=7 and type <= 16 then 
-			nodename = "basic_robot:button"..(type-7);
+		elseif type < 17 then
+			nodename = buttoncolors[type]
+		elseif type>=17 and type <= 26 then 
+			nodename = "basic_robot:button"..(type-17);
 		else 
-			nodename = "basic_robot:button_"..(type-17);
+			nodename = "basic_robot:button_"..(type-27);
 		end
 		
 		minetest.swap_node(pos, {name = nodename})
@@ -988,7 +1020,7 @@ basic_robot.commands.machine = {
 		
 		check_operations(name,6, true)
 						
-		if amount and amount>0 then -- attempt to generate power from builtin generator
+		if amount and amount>0 and amount<10^6 then -- attempt to generate power from builtin generator
 			local pos = basic_robot.data[name].spawnpos; -- position of spawner block
 			local inv = minetest.get_meta(pos):get_inventory();
 			local level = amount*40; -- to generate 1 unit ( coal lump per second ) we need at least upgrade 40
@@ -1162,9 +1194,8 @@ basic_robot.commands.machine = {
 		
 		local energy = 0; -- can only do one step at a run time
 		
-		
 		energy = data.menergy or 0;
-		if amount>energy or amount<0 then return nil,"energy too low" end
+		if amount>energy or amount<0 or amount>10^6 then return nil,"energy too low" end
 		
 		if not tdata.menergy then tdata.menergy = 0 end
 		tdata.menergy = tdata.menergy + amount

@@ -34,7 +34,7 @@
 		
 		
 		self.spam(1)
-		self.listen_punch(self.pos()); -- attach punch listener
+ self.listen_punch(self.pos()); -- attach punch listener
 		sokoban.push_time = 0
 		sokoban.blocks = 0;sokoban.level = 0; sokoban.moves=0;
 		imax = 0; jmax = 0
@@ -43,7 +43,7 @@
 		SOKOBAN_WALL = "moreblocks:cactus_brick"
 		SOKOBAN_FLOOR = "default:silver_sandstone"
 		SOKOBAN_GOAL = "default:aspen_tree"
-		SOKOBAN_BOX = "basic_robot:buttonFFFFFF"
+		SOKOBAN_BOX = "basic_robot:buttonwhite"
 		
 						
 		load_level = function(lvl)

@@ -3,7 +3,7 @@
 -- say: t TEXT\nTEXT...
 
 if not init then init = true
-	name = "_"
+	names = {["rnd"]=true,["PrairieWind"] = true}
 	
 	get_dir = function(view)
 		local dir
@@ -15,7 +15,7 @@ if not init then init = true
 		return dir
 	end
 	
-	render_text = function(text)
+	render_text = function(text,name)
 		local player = minetest.get_player_by_name(name)
 		local pos = player:get_pos()
 		local dir = get_dir(player:get_look_dir())
@@ -37,7 +37,7 @@ if not init then init = true
 end
 
 speaker,msg = self.listen_msg()
-if speaker == name and string.sub(msg,1,2) == "t " then
+if names[speaker] and string.sub(msg,1,2) == "t " then
 	
-	render_text(string.sub(msg,3))
+	render_text(string.sub(msg,3),speaker)
 end

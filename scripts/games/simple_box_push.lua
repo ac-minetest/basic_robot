@@ -3,23 +3,26 @@
 if not init then
   spos = self.spawnpos(); spos.x = spos.x +5; spos.z = spos.z +5;
   
-	for i = 1, 2 do
+	for i = 1, 2 do -- set up 4 boxes
 		for j = 1,2 do
-			puzzle.set_node({x=spos.x+i,y=spos.y,z=spos.z+j}, {name = "basic_robot:buttonFFFFFF"})
+			puzzle.set_node({x=spos.x+i,y=spos.y,z=spos.z+j}, {name = "basic_robot:buttonwhite"})
 		end
 	end
   
   init = true
   players = find_player(5);
   if not players then say("no players nearby") self.remove() end
-  say("BOX PUSH demo. punch the white box to move it around ")
+  self.label("BOX PUSH demo. punch the white box to move it around.\npush it into blue block to make it disappear.")
   
   pushables = {[1] = true} -- button types
-  canpushnodes = {["air"] = 1, ["basic_robot:button8080FF"] = 2} -- 1 push node, 2 absorb node
+  canpushnodes = {["air"] = 1, ["basic_robot:buttonblue"] = 2} -- 1 push node, 2 absorb node
+  
+  self.listen_punch(self.pos()) -- robot will now read punch button events in 32x32 box area
 end
 
 event = keyboard.get()
-if event then
+
+if event then -- there was punch event
 	local boxtype = event.type
 	if pushables[boxtype] then
 		player = puzzle.get_player(event.puncher)

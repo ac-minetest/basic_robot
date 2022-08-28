@@ -1,12 +1,45 @@
 --HIDE AND SEEK game robot, by rnd
 if not gamemaster then
-	timeout = 10;
+	timeout = 20;
+	fardist = 300
 	gamemaster = "rnd"
-	player_list = {}; 
-	_G.minetest.chat_send_all("# HIDE AND SEEK .. say #hide to join play")
-	s=0;t=0; count = 0;
+	
 	_G.minetest.forceload_block(self.pos(),true)
-	self.listen(1); self.label(colorize("yellow","HIDE&SEEK"))
+	self.listen(1); 
+	centerpos = {x=160,y= 606,z= 227};
+
+	init_game = function()
+		self.label(colorize("yellow","HIDE&SEEK .. waiting for players .. say #hide to join"))
+		_G.minetest.chat_send_all(colorize("red","# HIDE AND SEEK .. say #hide to join play, when all joined say #start to start game."))
+		s=0;t=0; count = 0;	
+		player_list = {}
+	end
+	
+	reset_name = function(name)
+		if name then
+			local player = minetest.get_player_by_name(name)
+			if not player then return end
+			player:set_properties({nametag_color = "white"})
+			return
+		end
+		local players = _G.minetest.get_connected_players();	
+		for _,player in pairs(players) do
+			local name = player:get_player_name();
+			local data = player_list[name];
+			if data then
+				player:set_properties({nametag_color = "white"})
+			end
+		end
+	end
+	
+	show_players = function()
+		local ret = {}
+		for k,v in pairs(player_list) do
+			ret[#ret+1]=k		
+		end
+		self.label("hide and seek, players: " .. table.concat(ret,", "))	
+	end
+	init_game()
 end
 
 speaker,msg = self.listen_msg();
@@ -17,7 +50,7 @@ if s==0 then
 		_G.minetest.chat_send_all("# HIDE AND SEEK: " .. speaker .. " joined the game")
 		local player = _G.minetest.get_player_by_name(speaker);
 		if player then 
-			player:setpos({x=0,y=5,z=0});player:set_properties({nametag_color = "0x0"}) 
+			player:setpos(centerpos);player:set_properties({nametag_color = "0x0"}) 
 		end
 	
 	end
@@ -52,16 +85,19 @@ elseif s==1 then
 		if data then
 			count=count+1
 			local pos = player:getpos();
-			local dist = math.max(math.abs(pos.x),math.abs(pos.y),math.abs(pos.z));
-			if dist>50 or (not _G.minetest.get_player_by_name(name)) then 
+			local dist = math.max(math.abs(pos.x-centerpos.x),math.abs(pos.y-centerpos.y),math.abs(pos.z-centerpos.z));
+			if dist>fardist or (not _G.minetest.get_player_by_name(name)) then 
 				_G.minetest.chat_send_all("# HIDE AND SEEK: ".. name .. " is OUT! went too far away " )
-				player:set_properties({nametag_color = "white"})
+				reset_name(name)
+				show_players()
 				player_list[name] = nil;
 			end
-			if data.hp ~= player:get_hp() then 
+			if data.hp < player:get_hp() then 
 				_G.minetest.chat_send_all("# HIDE AND SEEK: ".. name .. " is OUT! his health changed!" )
 				player:set_properties({nametag_color = "white"})
+				player:setpos(centerpos)
 				player_list[name] = nil;
+				show_players()
 			end
 			
 			--expose campers
@@ -87,20 +123,18 @@ elseif s==1 then
 		end
 	end
 
-	self.label(count)
-	
 	if count<=1 then 
 		if count==1 then
 			for name,_ in pairs(player_list) do
-				player0=_G.minetest.get_player_by_name(name)
 				_G.minetest.chat_send_all(colorize("red","****** HIDE AND SEEK: ".. name .. " wins ******"))
-				player0:set_properties({nametag_color = "white"})
-				gamemaster = false;
+				reset_name(name)
+				init_game();
 			end
 		else 
 			_G.minetest.chat_send_all("# HIDE AND SEEK: no players left")
-			gamemaster = false;
+			init_game()			
 		end
 	end
 	
 end
+

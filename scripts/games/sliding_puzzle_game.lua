@@ -19,7 +19,7 @@ if not init then
 			board[i]={};
 			for j = 1,n do
 				k=k+1
-				board[i][j]=7+ret[k] -- 7 numbers, 82 letters
+				board[i][j]=17+ret[k] -- 7 numbers, 82 letters
 			end
 		end
 		board[math.random(n)][math.random(n)] = 0
