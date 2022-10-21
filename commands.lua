@@ -790,7 +790,7 @@ basic_robot.commands.keyboard = {
 basic_robot.commands.craftcache = {};
 
 basic_robot.commands.craft = function(item, mode, idx,amount, name)
-	amount = amount and tonumber(amount) or 1;
+	amount = amount and math.floor(tonumber(amount)) or 1;
 	if amount<0 then amount = 1 end
 	if not item then return false end
 
@@ -865,7 +865,9 @@ basic_robot.commands.craft = function(item, mode, idx,amount, name)
 		inv:remove_item("main",stack);
 	end
 	
-	inv:add_item("main",ItemStack(output))
+	output = ItemStack(output)
+	output:set_count(output:get_count() * amount)
+	inv:add_item("main",output)
 	return true
 end
 

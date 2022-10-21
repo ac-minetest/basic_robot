@@ -173,7 +173,7 @@ local help_pages = {
 		"  activate.direction(mode) activates target block",
 		"  pickup(r) picks up all items around robot in radius r<8 and returns list",
 		"    or nil",
-		"  craft(item,idx,mode) crafts item if required materials are present in",
+		"  craft(item,idx,mode,amount) crafts item if required materials are present in",
 		"    inventory, mode = 1 returns recipe, optional recipe idx",
 		"  take.direction(item, inventory) takes item from target inventory into",
 		" robot inventory",
