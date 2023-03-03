@@ -65,7 +65,10 @@ local check_operations = function(name, amount, quit)
 		if operations >= 0 then 
 			data.operations = operations 
 		else 
-			if quit then
+			if data.cor then
+				-- When running as a coroutine, automatically pause as needed
+				data.sandbox.pause()
+			elseif quit then
 				error("Robot out of available operations in one step (1s). View available operations with self.operations() and check help to see how much operations each action requires."); return false
 			end
 			return false
